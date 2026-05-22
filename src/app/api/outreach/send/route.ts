@@ -13,7 +13,9 @@ const Body = z.object({
   lead_id: z.string().uuid(),
   channel: z.enum(['email', 'whatsapp']),
   dry_run: z.boolean().default(false),
-  skip_send: z.boolean().default(false)
+  skip_send: z.boolean().default(false),
+  prewritten_subject: z.string().optional(),
+  prewritten_body: z.string().optional()
 });
 
 export async function POST(req: NextRequest) {
@@ -34,11 +36,13 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'lead sem whatsapp' }, { status: 400 });
     }
 
-    // gera mensagem via IA
-    const aiResult = await llmJSON<{ subject?: string; body: string }>([
-      { role: 'system', content: sdrSystemPrompt() },
-      { role: 'user', content: sdrFirstTouchPrompt(lead, body.channel) }
-    ], { temperature: 0.8, max_tokens: 500 });
+    // usa texto pré-escrito (editado no modal) ou gera via IA
+    const aiResult: { subject?: string; body: string } = body.prewritten_body
+      ? { subject: body.prewritten_subject, body: body.prewritten_body }
+      : await llmJSON<{ subject?: string; body: string }>([
+          { role: 'system', content: sdrSystemPrompt() },
+          { role: 'user', content: sdrFirstTouchPrompt(lead, body.channel) }
+        ], { temperature: 0.8, max_tokens: 500 });
 
     if (body.dry_run) {
       return NextResponse.json({ preview: aiResult, dry_run: true });
@@ -103,7 +107,7 @@ export async function POST(req: NextRequest) {
           body: aiResult.body
         });
         providerId = r.id;
-        providerName = 'resend';
+        providerName = 'brevo';
       } else {
         const r = await sendWhatsApp({
           to: lead.whatsapp ?? lead.phone!,

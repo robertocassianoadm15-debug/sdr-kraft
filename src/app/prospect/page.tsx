@@ -24,6 +24,8 @@ export default function ProspectPage() {
   const [cadenceLoading, setCadenceLoading]   = useState(false);
   const [cadenceResult, setCadenceResult]     = useState<string | null>(null);
   const [preview, setPreview]           = useState<{ lead: Lead; data: Preview } | null>(null);
+  const [editedSubject, setEditedSubject] = useState('');
+  const [editedBody, setEditedBody]       = useState('');
   const [bdrLead, setBdrLead]           = useState<Lead | null>(null);
   const [bdrChannel, setBdrChannel]     = useState<'email' | 'whatsapp'>('email');
   const [bdrMsg, setBdrMsg]             = useState('');
@@ -80,7 +82,11 @@ export default function ProspectPage() {
       body: JSON.stringify({ lead_id: lead.id, channel: 'email', dry_run: true })
     });
     const json = await r.json();
-    if (json.preview) setPreview({ lead, data: json.preview });
+    if (json.preview) {
+      setEditedSubject(json.preview.subject ?? '');
+      setEditedBody(json.preview.body ?? '');
+      setPreview({ lead, data: json.preview });
+    }
     setBusyId(null);
   }
 
@@ -309,14 +315,17 @@ export default function ProspectPage() {
                       <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
                         {busyId === lead.id+':email' ? '...' : '✉'}
                       </button>
-                      <button
-                        onClick={() => sendWhatsAppManual(lead)}
-                        disabled={busyId !== null || (!lead.whatsapp && !lead.phone)}
-                        title={(!lead.whatsapp && !lead.phone) ? 'sem telefone' : undefined}
-                        className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40"
-                      >
-                        {busyId === lead.id+':whatsapp' ? '...' : '📱'}
-                      </button>
+                      {(lead.whatsapp || lead.phone) ? (
+                        <button
+                          onClick={() => sendWhatsAppManual(lead)}
+                          disabled={busyId !== null}
+                          className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40"
+                        >
+                          {busyId === lead.id+':whatsapp' ? '...' : '📱'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem número</span>
+                      )}
                     </>)}
                     {(lead.status==='replied'||lead.status==='contacted') && (
                       <button onClick={() => { setBdrLead(lead); setBdrMsg(''); setBdrResult(null); setBdrChannel(lead.email?'email':'whatsapp'); setTimeout(()=>document.getElementById('bdr-box')?.scrollIntoView({behavior:'smooth'}),100); }} className="btn-primary text-xs py-1 px-3 bg-kraft-600">
@@ -381,16 +390,44 @@ export default function ProspectPage() {
 
       {/* Modal preview */}
       {preview && (
-        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="bg-kraft-50 rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="font-display text-xl font-bold">Preview — {preview.lead.company_name}</h3>
-              <button onClick={() => setPreview(null)} className="text-kraft-500 hover:text-kraft-900">✕</button>
+              <h3 className="text-lg font-bold text-slate-900">Preview — {preview.lead.company_name}</h3>
+              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
             </div>
-            {preview.data.subject && <div className="mb-3"><div className="stat-label mb-1">Assunto</div><div className="font-medium text-kraft-900">{preview.data.subject}</div></div>}
-            <div><div className="stat-label mb-1">Mensagem</div><div className="text-kraft-800 leading-relaxed whitespace-pre-wrap">{preview.data.body}</div></div>
-            <div className="flex gap-3 mt-6">
-              <button onClick={() => { sendOne(preview.lead,'email'); setPreview(null); }} className="btn-primary flex-1">✉ Enviar agora</button>
+            <div className="mb-4">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assunto</label>
+              <input
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-kraft-500"
+                value={editedSubject}
+                onChange={e => setEditedSubject(e.target.value)}
+              />
+            </div>
+            <div className="mb-5">
+              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mensagem</label>
+              <textarea
+                rows={8}
+                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-kraft-500 resize-none"
+                value={editedBody}
+                onChange={e => setEditedBody(e.target.value)}
+              />
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  fetch('/api/outreach/send', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      lead_id: preview.lead.id, channel: 'email', dry_run: false,
+                      prewritten_subject: editedSubject, prewritten_body: editedBody
+                    })
+                  });
+                  setPreview(null);
+                  fetchLeads(statusFilter, campaignFilter);
+                }}
+                className="btn-primary flex-1"
+              >✉ Enviar agora</button>
               <button onClick={() => setPreview(null)} className="btn-ghost flex-1">Cancelar</button>
             </div>
           </div>
