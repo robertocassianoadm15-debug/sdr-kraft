@@ -10,7 +10,13 @@ interface Lead {
   status: string; score: number; campaign_id: string | null;
 }
 interface Preview { subject?: string; body: string; }
-interface OutreachInfo { last_sent_at: string; channel: string; message: string; touch_number: number; }
+interface OutreachInfo {
+  lead_id: string;
+  email_sent_at?: string;
+  email_touch?: number;
+  whatsapp_sent_at?: string;
+  whatsapp_touch?: number;
+}
 
 export default function ProspectPage() {
   const [campaigns, setCampaigns]       = useState<Campaign[]>([]);
@@ -183,6 +189,11 @@ export default function ProspectPage() {
     qualified: 'bg-kraft-800 text-kraft-50', disqualified: 'bg-gray-200 text-gray-600', lost: 'bg-red-100 text-red-800'
   };
 
+  function fmtDate(d?: string) {
+    if (!d) return '—';
+    return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
   const activeCampaign = campaigns.find(c => c.id === campaignFilter);
 
   return (
@@ -321,11 +332,16 @@ export default function ProspectPage() {
                   {lead.score > 0 && <span className="ml-1 font-mono text-xs text-kraft-600">·{lead.score}</span>}
                 </td>
                 {statusFilter === 'contacted' && (
-                  <td className="px-4 py-3 text-xs text-kraft-600">
+                  <td className="px-4 py-3 text-xs text-kraft-600 space-y-0.5">
                     {outreachMap[lead.id] ? (
                       <>
-                        <div>{new Date(outreachMap[lead.id].last_sent_at).toLocaleDateString('pt-BR')}</div>
-                        <div className="text-gray-400">{outreachMap[lead.id].channel} · toque {outreachMap[lead.id].touch_number}</div>
+                        {outreachMap[lead.id].email_sent_at && (
+                          <div>✉ {fmtDate(outreachMap[lead.id].email_sent_at)} · toque {outreachMap[lead.id].email_touch}</div>
+                        )}
+                        {outreachMap[lead.id].whatsapp_sent_at && (
+                          <div>📱 {fmtDate(outreachMap[lead.id].whatsapp_sent_at)} · toque {outreachMap[lead.id].whatsapp_touch}</div>
+                        )}
+                        {!outreachMap[lead.id].email_sent_at && !outreachMap[lead.id].whatsapp_sent_at && '—'}
                       </>
                     ) : '—'}
                   </td>
@@ -433,16 +449,20 @@ export default function ProspectPage() {
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewMsg(null)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Mensagem enviada — {viewMsg.company}</h3>
+              <h3 className="text-lg font-bold text-slate-900">Último envio — {viewMsg.company}</h3>
               <button onClick={() => setViewMsg(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
             </div>
-            <div className="flex gap-4 text-xs text-slate-500 mb-3">
-              <span>Canal: <strong className="text-slate-700">{viewMsg.info.channel}</strong></span>
-              <span>Toque: <strong className="text-slate-700">{viewMsg.info.touch_number}</strong></span>
-              <span>Enviado: <strong className="text-slate-700">{new Date(viewMsg.info.last_sent_at).toLocaleString('pt-BR')}</strong></span>
-            </div>
-            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-900 leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
-              {viewMsg.info.message}
+            <div className="space-y-2 text-sm text-slate-700">
+              {viewMsg.info.email_sent_at && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-lg">
+                  <div className="text-xs text-slate-500 mb-1">✉ Email · toque {viewMsg.info.email_touch} · {fmtDate(viewMsg.info.email_sent_at)}</div>
+                </div>
+              )}
+              {viewMsg.info.whatsapp_sent_at && (
+                <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                  <div className="text-xs text-slate-500">📱 WhatsApp · toque {viewMsg.info.whatsapp_touch} · {fmtDate(viewMsg.info.whatsapp_sent_at)}</div>
+                </div>
+              )}
             </div>
             <button onClick={() => setViewMsg(null)} className="btn-ghost w-full mt-4">Fechar</button>
           </div>
