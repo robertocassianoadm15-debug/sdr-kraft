@@ -1,26 +1,20 @@
-import { NextRequest, NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server'
 
 export function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  const { pathname } = req.nextUrl
 
-  if (
-    pathname === '/login' ||
-    pathname.startsWith('/api/auth/') ||
-    pathname.startsWith('/_next/') ||
-    pathname === '/logo.png' ||
-    pathname === '/favicon.ico'
-  ) {
-    return NextResponse.next();
+  if (pathname.startsWith('/login') || pathname.startsWith('/api/auth')) {
+    return NextResponse.next()
   }
 
-  const auth = req.cookies.get('sdr_auth')?.value;
-  if (!auth) {
-    return NextResponse.redirect(new URL('/login', req.url));
+  const cookie = req.cookies.get('sdr_auth')
+  if (!cookie?.value) {
+    return NextResponse.redirect(new URL('/login', req.url))
   }
 
-  return NextResponse.next();
+  return NextResponse.next()
 }
 
 export const config = {
   matcher: ['/((?!_next/static|_next/image|favicon.ico|logo.png).*)']
-};
+}
