@@ -39,11 +39,11 @@ export default function LoginPage() {
       <div className="bg-white rounded-2xl shadow-lg border border-slate-200 w-full max-w-sm p-8">
         <div className="flex flex-col items-center mb-8">
           <Image
-            src="/logo.png"
+            src="/logo.svg"
             alt="Gráfica Liderset"
-            width={120}
-            height={42}
-            className="h-10 w-auto object-contain mb-3"
+            width={200}
+            height={62}
+            className="h-12 w-auto object-contain mb-3"
             priority
           />
           <div className="text-xs uppercase tracking-[0.25em] text-slate-400">SDR · BDR Autônomo</div>

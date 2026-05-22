@@ -1,0 +1,25 @@
+<svg width="260" height="80" viewBox="0 0 520 160" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <radialGradient id="sl" cx="35%" cy="28%" r="65%"><stop offset="0%" stop-color="#fff" stop-opacity=".95"/><stop offset="40%" stop-color="#fff" stop-opacity=".2"/><stop offset="100%" stop-color="#000" stop-opacity=".4"/></radialGradient>
+    <radialGradient id="ss" cx="50%" cy="50%" r="50%"><stop offset="60%" stop-color="#000" stop-opacity="0"/><stop offset="100%" stop-color="#000" stop-opacity=".3"/></radialGradient>
+    <radialGradient id="hg" cx="40%" cy="35%" r="60%"><stop offset="0%" stop-color="#fff" stop-opacity=".9"/><stop offset="100%" stop-color="#ccc" stop-opacity=".3"/></radialGradient>
+    <clipPath id="sc"><circle cx="74" cy="80" r="68"/></clipPath>
+  </defs>
+  <g clip-path="url(#sc)">
+    <path d="M74 80 L6 12 A68 68 0 0 1 74 12 Z" fill="#00AEEF"/>
+    <path d="M74 80 L74 12 A68 68 0 0 1 142 80 Z" fill="#EC008C"/>
+    <path d="M74 80 L142 80 A68 68 0 0 1 74 148 Z" fill="#FFF200"/>
+    <path d="M74 80 L74 148 A68 68 0 0 1 6 80 Z" fill="#231F20"/>
+  </g>
+  <circle cx="74" cy="80" r="68" fill="none" stroke="#fff" stroke-width="2"/>
+  <circle cx="74" cy="80" r="68" fill="url(#sl)"/>
+  <circle cx="74" cy="80" r="68" fill="url(#ss)"/>
+  <circle cx="74" cy="80" r="13" fill="url(#hg)" stroke="#fff" stroke-width="1.5"/>
+  <ellipse cx="55" cy="50" rx="13" ry="8" fill="#fff" opacity=".5" transform="rotate(-20 55 50)"/>
+  <line x1="74" y1="12" x2="74" y2="148" stroke="#fff" stroke-width="1" opacity=".4"/>
+  <line x1="6" y1="80" x2="142" y2="80" stroke="#fff" stroke-width="1" opacity=".4"/>
+  <text x="158" y="46" font-family="Arial Narrow,Arial,sans-serif" font-size="16" font-weight="700" letter-spacing="4" fill="#1A3FA0">GRÁFICA</text>
+  <text x="154" y="98" font-family="Arial Black,Arial,sans-serif" font-size="58" font-weight="900" letter-spacing="-1" fill="#1A3FA0">Liderset</text>
+  <line x1="156" y1="108" x2="510" y2="108" stroke="#1A3FA0" stroke-width="1" opacity=".25"/>
+  <text x="158" y="128" font-family="Arial,sans-serif" font-size="11" font-weight="400" letter-spacing="3" fill="#1A3FA0" opacity=".6">IMPRIMINDO SENTIMENTOS</text>
+</svg>
