@@ -1,5 +1,4 @@
 import Link from 'next/link';
-import Image from 'next/image';
 
 export default function HomePage() {
   return (
@@ -12,15 +11,9 @@ export default function HomePage() {
           style={{ backgroundImage: 'radial-gradient(circle at 75% 40%, #818cf8 0%, transparent 55%)' }}
         />
         <div className="relative z-10 max-w-2xl">
-          <div className="mb-8">
-            <Image
-              src="/logo.png"
-              alt="Gráfica Liderset"
-              width={160}
-              height={56}
-              className="h-12 w-auto object-contain brightness-0 invert"
-              priority
-            />
+          <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur border border-white/20 rounded-full px-4 py-1.5 mb-6">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-white/80 text-xs font-medium tracking-wide">IA ativa · Groq Llama 3.3 · Brevo</span>
           </div>
           <h1 className="font-display text-4xl md:text-6xl font-bold text-white leading-[1.1]">
             Prospecção que<br />
