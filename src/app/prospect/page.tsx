@@ -10,6 +10,7 @@ interface Lead {
   status: string; score: number; campaign_id: string | null;
 }
 interface Preview { subject?: string; body: string; }
+interface OutreachInfo { last_sent_at: string; channel: string; message: string; touch_number: number; }
 
 export default function ProspectPage() {
   const [campaigns, setCampaigns]       = useState<Campaign[]>([]);
@@ -31,6 +32,8 @@ export default function ProspectPage() {
   const [bdrMsg, setBdrMsg]             = useState('');
   const [bdrResult, setBdrResult]       = useState<{ reply: string; next_status: string; intent_score: number } | null>(null);
   const [bdrLoading, setBdrLoading]     = useState(false);
+  const [outreachMap, setOutreachMap]   = useState<Record<string, OutreachInfo>>({});
+  const [viewMsg, setViewMsg]           = useState<{ company: string; info: OutreachInfo } | null>(null);
 
   useEffect(() => {
     fetch('/api/campaigns').then(r => r.json()).then(j => setCampaigns(j.campaigns ?? []));
@@ -47,6 +50,16 @@ export default function ProspectPage() {
   }
 
   useEffect(() => { fetchLeads(statusFilter, campaignFilter); setSelected(new Set()); }, [statusFilter, campaignFilter]);
+
+  useEffect(() => {
+    if (statusFilter === 'contacted' && leads.length > 0) {
+      const ids = leads.map(l => l.id).join(',');
+      fetch(`/api/leads/outreach?lead_ids=${ids}`)
+        .then(r => r.json()).then(j => setOutreachMap(j));
+    } else {
+      setOutreachMap({});
+    }
+  }, [leads, statusFilter]);
 
   function toggleSelect(id: string) {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
@@ -276,14 +289,15 @@ export default function ProspectPage() {
               <th className="text-left px-4 py-3 stat-label">Cidade</th>
               <th className="text-left px-4 py-3 stat-label">Contato</th>
               <th className="text-left px-4 py-3 stat-label">Status</th>
+              {statusFilter === 'contacted' && <th className="text-left px-4 py-3 stat-label">Último envio</th>}
               <th className="text-right px-4 py-3 stat-label">Ações</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={7} className="text-center py-10 text-kraft-600">Carregando...</td></tr>
+              <tr><td colSpan={statusFilter === 'contacted' ? 8 : 7} className="text-center py-10 text-kraft-600">Carregando...</td></tr>
             ) : leads.length === 0 ? (
-              <tr><td colSpan={7} className="text-center py-10 text-kraft-600">
+              <tr><td colSpan={statusFilter === 'contacted' ? 8 : 7} className="text-center py-10 text-kraft-600">
                 Nenhum lead em "{statusFilter}"{campaignFilter !== 'all' ? ` nesta campanha` : ''}.
               </td></tr>
             ) : leads.map(lead => (
@@ -306,6 +320,16 @@ export default function ProspectPage() {
                   <span className={'badge ' + (statusColors[lead.status] ?? 'bg-gray-100 text-gray-700')}>{lead.status}</span>
                   {lead.score > 0 && <span className="ml-1 font-mono text-xs text-kraft-600">·{lead.score}</span>}
                 </td>
+                {statusFilter === 'contacted' && (
+                  <td className="px-4 py-3 text-xs text-kraft-600">
+                    {outreachMap[lead.id] ? (
+                      <>
+                        <div>{new Date(outreachMap[lead.id].last_sent_at).toLocaleDateString('pt-BR')}</div>
+                        <div className="text-gray-400">{outreachMap[lead.id].channel} · toque {outreachMap[lead.id].touch_number}</div>
+                      </>
+                    ) : '—'}
+                  </td>
+                )}
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1 flex-wrap">
                     {lead.status === 'new' && (<>
@@ -316,15 +340,31 @@ export default function ProspectPage() {
                         {busyId === lead.id+':email' ? '...' : '✉'}
                       </button>
                       {(lead.whatsapp || lead.phone) ? (
-                        <button
-                          onClick={() => sendWhatsAppManual(lead)}
-                          disabled={busyId !== null}
-                          className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40"
-                        >
-                          {busyId === lead.id+':whatsapp' ? '...' : '📱'}
+                        <button onClick={() => sendWhatsAppManual(lead)} disabled={busyId !== null}
+                          className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40">
+                          {busyId === lead.id+':whatsapp' ? '...' : 'WA'}
                         </button>
                       ) : (
-                        <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem número</span>
+                        <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem nº</span>
+                      )}
+                    </>)}
+                    {lead.status === 'contacted' && (<>
+                      <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
+                        {busyId === lead.id+':email' ? '...' : 'Reenviar Email'}
+                      </button>
+                      {(lead.whatsapp || lead.phone) ? (
+                        <button onClick={() => sendWhatsAppManual(lead)} disabled={busyId !== null}
+                          className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40">
+                          {busyId === lead.id+':whatsapp' ? '...' : 'Reenviar WA'}
+                        </button>
+                      ) : (
+                        <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem nº</span>
+                      )}
+                      {outreachMap[lead.id] && (
+                        <button onClick={() => setViewMsg({ company: lead.company_name, info: outreachMap[lead.id] })}
+                          className="btn-ghost text-xs py-1 px-2">
+                          Ver msg
+                        </button>
                       )}
                     </>)}
                     {(lead.status==='replied'||lead.status==='contacted') && (
@@ -387,6 +427,27 @@ export default function ProspectPage() {
           <p className="text-sm text-kraft-600">Clique em <strong>🤖 BDR →</strong> em qualquer lead com status <em>replied</em> ou <em>contacted</em>.</p>
         )}
       </div>
+
+      {/* Modal ver mensagem enviada */}
+      {viewMsg && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setViewMsg(null)}>
+          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="text-lg font-bold text-slate-900">Mensagem enviada — {viewMsg.company}</h3>
+              <button onClick={() => setViewMsg(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
+            </div>
+            <div className="flex gap-4 text-xs text-slate-500 mb-3">
+              <span>Canal: <strong className="text-slate-700">{viewMsg.info.channel}</strong></span>
+              <span>Toque: <strong className="text-slate-700">{viewMsg.info.touch_number}</strong></span>
+              <span>Enviado: <strong className="text-slate-700">{new Date(viewMsg.info.last_sent_at).toLocaleString('pt-BR')}</strong></span>
+            </div>
+            <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 text-sm text-slate-900 leading-relaxed whitespace-pre-wrap max-h-72 overflow-y-auto">
+              {viewMsg.info.message}
+            </div>
+            <button onClick={() => setViewMsg(null)} className="btn-ghost w-full mt-4">Fechar</button>
+          </div>
+        </div>
+      )}
 
       {/* Modal preview */}
       {preview && (
