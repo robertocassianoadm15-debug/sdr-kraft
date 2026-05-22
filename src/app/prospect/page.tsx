@@ -56,12 +56,31 @@ export default function ProspectPage() {
     setBusyId(null);
   }
 
-  async function sendOne(lead: Lead, channel: 'email' | 'whatsapp') {
+  async function sendOne(lead: Lead, channel: 'email') {
     setBusyId(lead.id + ':' + channel);
     await fetch('/api/outreach/send', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ lead_id: lead.id, channel, dry_run: false })
     });
+    setBusyId(null);
+    fetchLeads(statusFilter, campaignFilter);
+  }
+
+  async function sendWhatsAppManual(lead: Lead) {
+    setBusyId(lead.id + ':whatsapp');
+    try {
+      const r = await fetch('/api/outreach/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: lead.id, channel: 'whatsapp', skip_send: true })
+      });
+      const j = await r.json();
+      const mensagem = j.preview?.body;
+      if (mensagem) {
+        const phone = lead.whatsapp ?? lead.phone ?? '';
+        const numero = phone.replace(/\D/g, '');
+        window.open(`https://wa.me/${numero}?text=${encodeURIComponent(mensagem)}`, '_blank');
+      }
+    } catch {}
     setBusyId(null);
     fetchLeads(statusFilter, campaignFilter);
   }
@@ -249,7 +268,7 @@ export default function ProspectPage() {
                         {busyId === lead.id+':email' ? '...' : '✉'}
                       </button>
                       <button
-                        onClick={() => sendOne(lead,'whatsapp')}
+                        onClick={() => sendWhatsAppManual(lead)}
                         disabled={busyId !== null || (!lead.whatsapp && !lead.phone)}
                         title={(!lead.whatsapp && !lead.phone) ? 'sem telefone' : undefined}
                         className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40"

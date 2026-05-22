@@ -12,7 +12,8 @@ export const maxDuration = 60;
 const Body = z.object({
   lead_id: z.string().uuid(),
   channel: z.enum(['email', 'whatsapp']),
-  dry_run: z.boolean().default(false)
+  dry_run: z.boolean().default(false),
+  skip_send: z.boolean().default(false)
 });
 
 export async function POST(req: NextRequest) {
@@ -41,6 +42,28 @@ export async function POST(req: NextRequest) {
 
     if (body.dry_run) {
       return NextResponse.json({ preview: aiResult, dry_run: true });
+    }
+
+    // whatsapp manual: grava como enviado sem chamar provider
+    if (body.skip_send) {
+      const { data: outreach, error: orErr } = await supabase
+        .from('outreach').insert({
+          lead_id: lead.id,
+          channel: body.channel,
+          direction: 'outbound',
+          message: aiResult.body,
+          status: 'sent',
+          provider: 'whatsapp_manual',
+          sent_at: new Date().toISOString()
+        }).select().single();
+      if (orErr) throw orErr;
+      await supabase.from('leads').update({ status: 'contacted' }).eq('id', lead.id);
+      await logEvent({
+        entity_type: 'outreach', entity_id: outreach.id,
+        action: 'sent', actor: 'ai',
+        metadata: { channel: body.channel, provider: 'whatsapp_manual' }
+      });
+      return NextResponse.json({ ok: true, preview: aiResult });
     }
 
     // grava outreach (pending)
