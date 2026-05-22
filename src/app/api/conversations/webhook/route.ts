@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
             body: bdr.reply
           });
           providerId = r.id;
-          providerName = 'resend';
+          providerName = 'brevo';
         } else if (body.channel === 'whatsapp' && (lead.whatsapp || lead.phone)) {
           const r = await sendWhatsApp({
             to: lead.whatsapp ?? lead.phone!,

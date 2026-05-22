@@ -18,6 +18,7 @@ export default function ProspectPage() {
   const [statusFilter, setStatusFilter] = useState('new');
   const [loading, setLoading]           = useState(true);
   const [busyId, setBusyId]             = useState<string | null>(null);
+  const [selected, setSelected]               = useState<Set<string>>(new Set());
   const [bulkLoading, setBulkLoading]         = useState(false);
   const [bulkResult, setBulkResult]           = useState<string | null>(null);
   const [cadenceLoading, setCadenceLoading]   = useState(false);
@@ -43,7 +44,34 @@ export default function ProspectPage() {
     setLoading(false);
   }
 
-  useEffect(() => { fetchLeads(statusFilter, campaignFilter); }, [statusFilter, campaignFilter]);
+  useEffect(() => { fetchLeads(statusFilter, campaignFilter); setSelected(new Set()); }, [statusFilter, campaignFilter]);
+
+  function toggleSelect(id: string) {
+    setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
+  }
+  function toggleAll() {
+    setSelected(leads.length > 0 && leads.every(l => selected.has(l.id)) ? new Set() : new Set(leads.map(l => l.id)));
+  }
+
+  async function sendSelected() {
+    const toSend = leads.filter(l => selected.has(l.id) && l.email);
+    if (!toSend.length) { setBulkResult('Nenhum selecionado com email.'); return; }
+    setBulkLoading(true); setBulkResult(null);
+    let ok = 0; let fail = 0;
+    for (const lead of toSend) {
+      try {
+        const r = await fetch('/api/outreach/send', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_id: lead.id, channel: 'email', dry_run: false })
+        });
+        const j = await r.json(); j.ok ? ok++ : fail++;
+      } catch { fail++; }
+    }
+    setBulkResult(`✅ ${ok} enviados · ❌ ${fail} falhas`);
+    setBulkLoading(false);
+    setSelected(new Set());
+    fetchLeads(statusFilter, campaignFilter);
+  }
 
   async function previewEmail(lead: Lead) {
     setBusyId(lead.id + ':preview');
@@ -152,6 +180,11 @@ export default function ProspectPage() {
           <button onClick={runCadence} disabled={cadenceLoading} className="btn-primary disabled:opacity-50 bg-navy-800 hover:bg-navy-900">
             {cadenceLoading ? 'Processando...' : '▶ Processar cadência'}
           </button>
+          {selected.size > 0 && (
+            <button onClick={sendSelected} disabled={bulkLoading} className="btn-primary disabled:opacity-50 bg-blue-700 hover:bg-blue-800">
+              {bulkLoading ? 'Enviando...' : `☑ Enviar selecionados (${selected.size})`}
+            </button>
+          )}
           <button onClick={sendBulk} disabled={bulkLoading || statusFilter !== 'new'} className="btn-primary disabled:opacity-50">
             {bulkLoading ? 'Enviando...' : '⚡ Enviar todos novos'}
           </button>
@@ -227,6 +260,11 @@ export default function ProspectPage() {
         <table className="w-full text-sm">
           <thead className="bg-kraft-100">
             <tr>
+              <th className="px-4 py-3 w-8">
+                <input type="checkbox" className="w-4 h-4 accent-kraft-800"
+                  checked={leads.length > 0 && leads.every(l => selected.has(l.id))}
+                  onChange={toggleAll} />
+              </th>
               <th className="text-left px-4 py-3 stat-label">Empresa</th>
               <th className="text-left px-4 py-3 stat-label">Segmento</th>
               <th className="text-left px-4 py-3 stat-label">Cidade</th>
@@ -237,13 +275,17 @@ export default function ProspectPage() {
           </thead>
           <tbody>
             {loading ? (
-              <tr><td colSpan={6} className="text-center py-10 text-kraft-600">Carregando...</td></tr>
+              <tr><td colSpan={7} className="text-center py-10 text-kraft-600">Carregando...</td></tr>
             ) : leads.length === 0 ? (
-              <tr><td colSpan={6} className="text-center py-10 text-kraft-600">
+              <tr><td colSpan={7} className="text-center py-10 text-kraft-600">
                 Nenhum lead em "{statusFilter}"{campaignFilter !== 'all' ? ` nesta campanha` : ''}.
               </td></tr>
             ) : leads.map(lead => (
-              <tr key={lead.id} className={'border-t border-kraft-200 hover:bg-kraft-50 ' + (bdrLead?.id === lead.id ? 'bg-kraft-100' : '')}>
+              <tr key={lead.id} className={'border-t border-kraft-200 hover:bg-kraft-50 ' + (selected.has(lead.id) ? 'bg-blue-50 ' : '') + (bdrLead?.id === lead.id ? 'bg-kraft-100' : '')}>
+                <td className="px-4 py-3 w-8">
+                  <input type="checkbox" className="w-4 h-4 accent-kraft-800"
+                    checked={selected.has(lead.id)} onChange={() => toggleSelect(lead.id)} />
+                </td>
                 <td className="px-4 py-3">
                   <div className="font-medium text-kraft-900">{lead.company_name}</div>
                   {lead.contact_name && <div className="text-xs text-kraft-500">{lead.contact_name}</div>}

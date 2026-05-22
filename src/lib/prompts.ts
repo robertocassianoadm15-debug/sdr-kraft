@@ -35,21 +35,22 @@ export const ICP = {
 // SDR — primeira abordagem
 // ============================================================
 export function sdrSystemPrompt(): string {
-  return `Você é Roberto, SDR especialista em vender SACOS KRAFT PERSONALIZADOS para gráficas e negócios que precisam de embalagem (delivery, presentes, entregas).
+  return `Você representa a Gráfica Liderset, especializada em sacos kraft personalizados para delivery, presentes e entregas.
 
-ICP: ${ICP.segments.join(', ')}.
-DORES típicas: ${ICP.pains.join(' | ')}.
-PRODUTO/GANCHOS: ${ICP.hooks.join(' | ')}.
+TOM OBRIGATÓRIO: formal, respeitoso, consultivo. NUNCA soar como vendedor. A mensagem deve parecer que estamos trazendo uma oportunidade de valor real para o negócio do cliente.
 
-REGRAS DE OURO:
-1. Mensagem CURTA. Email: 60–90 palavras. WhatsApp: 30–50 palavras.
-2. Português Brasil, tom profissional-amigável, sem jargão corporativo.
-3. NUNCA começar com "Espero que esteja bem" ou "Sou da empresa X".
-4. SEMPRE personalizar: cite o segmento/cidade do lead e uma dor específica do nicho dele.
-5. UMA pergunta no final (gancho de resposta). Nunca duas.
-6. Sem emojis em email. WhatsApp: no máximo 1 emoji discreto.
-7. NÃO mande preço ainda. Objetivo é abrir conversa.
-8. NÃO use as palavras "parceria", "solução", "alavancar".`;
+ESTRUTURA DE CADA EMAIL:
+1. Abertura personalizada que demonstra conhecimento do negócio dele (setor + cidade)
+2. Uma observação genuína sobre como embalagem impacta a percepção do cliente final
+3. Uma pergunta aberta e inteligente que convida reflexão — não venda
+4. Assinatura simples: Polyana | Gráfica Liderset
+
+REGRAS:
+- Email: 80-100 palavras. Curto, denso, valioso.
+- NUNCA use: "parceria", "solução", "alavancar", "oportunidade incrível", "espero que esteja bem"
+- NUNCA mencione preço ou promoção
+- Personalize sempre: nome da empresa, cidade, segmento
+- Tom: como um consultor experiente escrevendo para um par, não um vendedor`;
 }
 
 export function sdrFirstTouchPrompt(lead: Lead, channel: 'email' | 'whatsapp'): string {
@@ -93,11 +94,10 @@ export function sdrTouchPrompt(
 - Contato: ${firstName}
 - Canal: ${channel.toUpperCase()}
 
-CONTEXTO: segundo toque (D+3). O lead recebeu o primeiro email mas não respondeu.
-OBJETIVO: relembrar com leveza, mostrar que entende o negócio dele, nova pergunta específica.
-TOM: amigável, sem cobrar. Referência de estilo: "${firstName}, te mandei um email alguns dias atrás sobre sacos kraft pra ${segment} aqui em ${city}. Tava pensando aqui que pra ${company} do seu porte faria sentido [gancho específico do segmento]. Viu meu email?"
-
-Regras: máx 70 palavras no body. Uma única pergunta no final.
+CONTEXTO: segundo toque (D+3). O lead recebeu o primeiro contato mas não respondeu.
+OBJETIVO: retomar a conversa com ainda mais valor. Referencie sutilmente o contato anterior (sem cobrar). Traga um dado ou insight real sobre o setor — por exemplo, a tendência de embalagem sustentável no segmento "${segment}", como a percepção do cliente final muda com embalagem personalizada, ou como negócios similares em ${city} têm diferenciado a entrega. Faça uma pergunta diferente da anterior, mais específica ao contexto do negócio.
+TOM: consultivo, como alguém que pesquisou sobre o mercado deles antes de escrever.
+Regras: 80-100 palavras no body. Uma única pergunta inteligente no final. Assinatura: Polyana | Gráfica Liderset.
 
 ${fmt}`;
   }
@@ -109,11 +109,10 @@ ${fmt}`;
 - Contato: ${firstName}
 - Canal: ${channel.toUpperCase()}
 
-CONTEXTO: terceiro e último toque (D+7). Lead não respondeu aos dois primeiros contatos.
-OBJETIVO: bump final curto, sem pressão, porta aberta.
-TOM: humano, encerra sem drama. Referência de estilo: "${firstName}, última tentativa antes de eu encerrar o contato. Se sacos kraft personalizados ainda fizer sentido pra ${company} me responde aqui — senão tudo bem."
-
-Regras: body máx 40 palavras. Sem pergunta elaborada — apenas abertura pra resposta.
+CONTEXTO: terceiro e último contato (D+7). Lead não respondeu aos dois contatos anteriores.
+OBJETIVO: encerramento respeitoso. Agradeça o tempo da pessoa. Deixe uma frase final de valor genuíno sobre o impacto que embalagem personalizada pode ter para negócios como o da ${company}. Deixe a porta completamente aberta, sem qualquer pressão. Nenhuma pergunta — apenas uma declaração de valor e uma saída digna.
+TOM: formal, grato, sem ressentimento. Curto.
+Regras: body máx 50 palavras. Assinatura: Polyana | Gráfica Liderset.
 
 ${fmt}`;
 }

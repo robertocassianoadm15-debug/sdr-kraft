@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 export const maxDuration = 60;
 
 export async function GET() {
+  console.log('[process-cadence] iniciando', new Date().toISOString());
   const now = new Date().toISOString();
 
   const { data: queue, error } = await supabase
