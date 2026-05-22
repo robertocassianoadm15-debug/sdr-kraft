@@ -1,32 +1,25 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { supabase } from '@/lib/supabase';
+import { NextResponse } from 'next/server';
+import { config } from '@/lib/config';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET() {
-  const { data, error } = await supabase
-    .from('settings')
-    .select('key, value');
-
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  const obj = Object.fromEntries((data ?? []).map(r => [r.key, r.value]));
-  return NextResponse.json(obj);
+  return NextResponse.json({
+    brevo_configured:   !!config.brevo.apiKey,
+    from_email:         config.brevo.fromEmail,
+    from_name:          config.brevo.fromName,
+    reply_to_email:     config.brevo.replyTo,
+    groq_configured:    !!config.groq.apiKey,
+    groq_model:         config.groq.model,
+    supabase_configured: !!config.supabase.url && !!config.supabase.serviceKey,
+    manage_url: 'https://vercel.com/escard-s-projects/sdr-kraft/settings/environment-variables'
+  });
 }
 
-export async function POST(req: NextRequest) {
-  try {
-    const { key, value } = await req.json();
-    if (!key) return NextResponse.json({ error: 'key obrigatório' }, { status: 400 });
-
-    const { error } = await supabase
-      .from('settings')
-      .upsert({ key, value, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-
-    if (error) throw error;
-    return NextResponse.json({ ok: true });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
-  }
+export async function POST() {
+  return NextResponse.json(
+    { error: 'Configurações são gerenciadas via variáveis de ambiente no Vercel. Acesse: https://vercel.com/escard-s-projects/sdr-kraft/settings/environment-variables' },
+    { status: 400 }
+  );
 }

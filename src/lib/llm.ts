@@ -1,8 +1,4 @@
-/**
- * Camada LLM unificada.
- * Troque de provider editando APENAS este arquivo.
- * MVP: Groq (Llama 3.1) — grátis e rápido.
- */
+import { config } from './config';
 
 const GROQ_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
@@ -21,16 +17,13 @@ export async function llm(
   messages: LLMMessage[],
   opts: LLMOptions = {}
 ): Promise<string> {
-  const apiKey = process.env.GROQ_API_KEY;
-  const model = process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile';
-
-  if (!apiKey) throw new Error('GROQ_API_KEY ausente');
+  if (!config.groq.apiKey) throw new Error('GROQ_API_KEY ausente');
 
   const body: Record<string, unknown> = {
-    model,
+    model:       config.groq.model,
     messages,
     temperature: opts.temperature ?? 0.7,
-    max_tokens: opts.max_tokens ?? 800
+    max_tokens:  opts.max_tokens ?? 800
   };
   if (opts.response_format === 'json') {
     body.response_format = { type: 'json_object' };
@@ -39,7 +32,7 @@ export async function llm(
   const res = await fetch(GROQ_URL, {
     method: 'POST',
     headers: {
-      Authorization: `Bearer ${apiKey}`,
+      Authorization: `Bearer ${config.groq.apiKey}`,
       'Content-Type': 'application/json'
     },
     body: JSON.stringify(body)

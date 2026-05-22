@@ -1,9 +1,4 @@
-import { supabase } from '@/lib/supabase';
-
-async function getSettings(): Promise<Record<string, string>> {
-  const { data } = await supabase.from('settings').select('key, value');
-  return Object.fromEntries((data ?? []).map(r => [r.key, r.value ?? '']));
-}
+import { config } from './config';
 
 function escapeHtml(s: string): string {
   return s
@@ -17,17 +12,8 @@ export async function sendEmail(params: {
   subject: string;
   body: string;
 }): Promise<{ id: string }> {
-  const cfg = await getSettings();
-
-  const apiKey  = cfg['brevo_api_key'];
-  const from    = cfg['from_email'];
-  const name    = cfg['from_name'];
-  const replyTo = cfg['reply_to_email'];
-
-  if (!apiKey)  throw new Error('brevo_api_key não configurada em settings');
-  if (!from)    throw new Error('from_email não configurado em settings');
-  if (!name)    throw new Error('from_name não configurado em settings');
-  if (!replyTo) throw new Error('reply_to_email não configurado em settings');
+  if (!config.brevo.apiKey)  throw new Error('BREVO_API_KEY não configurado');
+  if (!config.brevo.fromEmail) throw new Error('FROM_EMAIL não configurado');
 
   const html = params.body
     .split('\n')
@@ -37,14 +23,14 @@ export async function sendEmail(params: {
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      'api-key': apiKey,
+      'api-key': config.brevo.apiKey,
       'Content-Type': 'application/json',
       Accept: 'application/json'
     },
     body: JSON.stringify({
-      sender:      { name, email: from },
+      sender:      { name: config.brevo.fromName, email: config.brevo.fromEmail },
       to:          [{ email: params.to }],
-      replyTo:     { email: replyTo },
+      replyTo:     { email: config.brevo.replyTo || config.brevo.fromEmail },
       subject:     params.subject,
       htmlContent: html
     })
@@ -56,12 +42,9 @@ export async function sendEmail(params: {
   }
 
   const json = await res.json();
-  return { id: json.messageId ?? 'unknown' };
+  return { id: json.messageId ?? 'sent' };
 }
 
-// ============================================================
-// WhatsApp — Evolution API com fallback wa.me
-// ============================================================
 export async function sendWhatsApp(params: {
   to: string;
   body: string;
