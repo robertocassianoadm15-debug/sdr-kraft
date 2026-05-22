@@ -31,22 +31,46 @@ function parseCSVText(text: string): any[] {
         .replace(/\s+/g, '_')
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   });
-  return (parsed.data as any[]).filter(r => r.company_name || r.nome || r.empresa);
+  return (parsed.data as any[]).filter(r => Object.values(r).some(v => v));
 }
+
+const COMPANY_KEYS = [
+  'company_name','empresa','nome','razao_social','nome_empresa','company',
+  'nome_da_empresa','nome_fantasia','fantasia'
+];
 
 function normalizeCSVRow(row: any): LeadInput {
   const get = (...keys: string[]) => {
     for (const k of keys) if (row[k]) return String(row[k]).trim();
     return null;
   };
+
+  const hasKnownColumns = COMPANY_KEYS.some(k => row[k] !== undefined);
+
+  if (!hasKnownColumns) {
+    const vals = Object.values(row).map(v => (v ? String(v).trim() : null));
+    return {
+      company_name: vals[0] ?? '',
+      contact_name: vals[1] ?? null,
+      email:        vals[2] ?? null,
+      phone:        vals[3] ?? null,
+      whatsapp:     vals[3] ?? null,
+      segment:      vals[4] ?? null,
+      city:         vals[5] ?? null,
+      state:        vals[6] ?? null,
+      website:      null
+    };
+  }
+
   return {
-    company_name: get('company_name','empresa','nome','razao_social','nome_empresa','company') ?? '',
-    contact_name: get('contact_name','contato','nome_contato','responsavel','contact'),
-    email:        get('email','e_mail','e-mail','mail'),
-    phone:        get('phone','telefone','fone','tel'),
+    company_name: get(...COMPANY_KEYS) ?? '',
+    contact_name: get('contact_name','contato','nome_contato','responsavel','contact',
+      'nome_do_contato','proprietario','dono'),
+    email:        get('email','e_mail','e-mail','mail','correio'),
+    phone:        get('phone','telefone','fone','tel','cel','celular','numero'),
     whatsapp:     get('whatsapp','zap','wpp','whats'),
-    segment:      get('segment','segmento','ramo','nicho','categoria'),
-    city:         get('city','cidade','municipio'),
+    segment:      get('segment','segmento','ramo','nicho','categoria','atividade','tipo','area'),
+    city:         get('city','cidade','municipio','bairro','regiao','localidade'),
     state:        get('state','estado','uf'),
     website:      get('website','site','url','homepage')
   };
@@ -86,6 +110,7 @@ export async function POST(req: NextRequest) {
       rawLeads = parseCSVText(buffer.toString('utf-8')).map(normalizeCSVRow);
     } else if (fmt === 'xlsx' || fmt === 'xls') {
       const text = await extractText(buffer, filename);
+      console.log('[import:xlsx] primeiras 3 linhas:', text.split('\n').slice(0, 3));
       rawLeads = parseCSVText(text).map(normalizeCSVRow);
     } else {
       const text = await extractText(buffer, filename);
