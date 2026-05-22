@@ -1,0 +1,47 @@
+/* fonts */
+@import url('https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body {
+    background: #F8FAFC;
+    color: #0f172a;
+    font-family: 'DM Sans', system-ui, sans-serif;
+  }
+  h1, h2, h3 {
+    font-family: 'DM Serif Display', Georgia, serif;
+    letter-spacing: -0.02em;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white border border-slate-200 rounded-xl shadow-sm;
+  }
+  .btn {
+    @apply inline-flex items-center justify-center px-4 py-2 rounded-lg font-medium transition-colors;
+  }
+  .btn-primary {
+    @apply btn bg-navy-600 text-white hover:bg-navy-700;
+  }
+  .btn-ghost {
+    @apply btn bg-transparent border border-slate-300 text-slate-700 hover:bg-slate-100;
+  }
+  .input {
+    @apply w-full px-3 py-2 rounded-lg border border-slate-300 bg-white
+           focus:outline-none focus:ring-2 focus:ring-navy-500 text-slate-900;
+  }
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium;
+  }
+  .stat-num {
+    font-family: 'DM Serif Display', serif;
+    @apply text-4xl md:text-5xl font-bold text-navy-900;
+  }
+  .stat-label {
+    @apply text-xs uppercase tracking-widest text-slate-500;
+  }
+}
