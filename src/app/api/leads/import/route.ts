@@ -23,9 +23,12 @@ const LeadSchema = z.object({
 type LeadInput = z.infer<typeof LeadSchema>;
 
 function parseCSVText(text: string): any[] {
+  // detecta separador automaticamente (v\u00edrgula ou ponto-e-v\u00edrgula)
+  const separator = text.split('\n')[0].includes(';') ? ';' : ',';
   const parsed = Papa.parse(text, {
     header: true,
     skipEmptyLines: true,
+    delimiter: separator,
     transformHeader: (h: string) =>
       h.trim().toLowerCase()
         .replace(/\s+/g, '_')
@@ -66,10 +69,14 @@ function normalizeCSVRow(row: any): LeadInput {
     company_name: get(...COMPANY_KEYS) ?? '',
     contact_name: get('contact_name','contato','nome_contato','responsavel','contact',
       'nome_do_contato','proprietario','dono'),
-    email:        get('email','e_mail','e-mail','mail','correio'),
-    phone:        get('phone','telefone','fone','tel','cel','celular','numero'),
-    whatsapp:     get('whatsapp','zap','wpp','whats'),
-    segment:      get('segment','segmento','ramo','nicho','categoria','atividade','tipo','area'),
+    email:        get('email','e_mail','e-mail','mail','correio',
+      'e-mail_de_contato','email_de_contato'),
+    phone:        get('phone','telefone','fone','tel','cel','celular','numero',
+      'telefone_whatsapp','telefone_/_whatsapp'),
+    whatsapp:     get('whatsapp','zap','wpp','whats',
+      'telefone_whatsapp','telefone_/_whatsapp'),
+    segment:      get('segment','segmento','ramo','nicho','categoria','atividade','tipo','area',
+      'segmento_nicho','segmento_/_nicho'),
     city:         get('city','cidade','municipio','bairro','regiao','localidade'),
     state:        get('state','estado','uf'),
     website:      get('website','site','url','homepage')
