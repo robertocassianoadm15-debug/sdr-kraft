@@ -34,6 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavLink href="/prospect" label="Prospecção" />
               <NavLink href="/dashboard" label="Dashboard" />
               <NavLink href="/settings" label="⚙ Config" />
+              <NavLink href="/users" label="Usuários" />
+              <a
+                href="/api/auth/logout"
+                className="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
+              >
+                Sair
+              </a>
             </nav>
           </div>
         </header>
