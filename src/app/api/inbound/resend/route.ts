@@ -32,14 +32,30 @@ function extractEmail(val: unknown): string {
 
 async function processInboundEmail(payload: Record<string, unknown>): Promise<void> {
   try {
-    const data = (payload.data ?? payload) as Record<string, unknown>;
-    console.log('[INBOUND] Processando:', (data.to as unknown), (data.from as string));
+    // Payload do Resend: { type, created_at, data: { email_id, from, to, subject, text, html } }
+    const data    = (payload.data as Record<string, unknown>) ?? {};
+    const emailId = (data.email_id as string) ?? '';
     const from    = (data.from as string) ?? '';
     const toRaw   = Array.isArray(data.to) ? data.to : [data.to];
     const toEmails = (toRaw as unknown[]).map(extractEmail);
     const subject = (data.subject as string) ?? '';
     const text    = (data.text as string) ?? (data.html as string) ?? '';
     const hdrs    = (data.headers as Array<{ name: string; value: string }>) ?? [];
+
+    console.log('[INBOUND] Processando:', toEmails, from, 'email_id:', emailId);
+
+    // Idempotência: ignorar retries do Resend para o mesmo email_id
+    if (emailId) {
+      const { data: existing } = await supabase
+        .from('conversations')
+        .select('id')
+        .contains('metadata', { email_id: emailId })
+        .maybeSingle();
+      if (existing) {
+        console.log('[INBOUND] Email já processado, ignorando retry:', emailId);
+        return;
+      }
+    }
 
     // Anti-loop guards
     const fromLow = from.toLowerCase();
@@ -66,7 +82,7 @@ async function processInboundEmail(payload: Record<string, unknown>): Promise<vo
       .gte('created_at', since);
     if ((count ?? 0) >= 3) return;
 
-    // Save inbound conversation
+    // Save inbound conversation (com email_id para idempotência futura)
     const { data: conv, error: convErr } = await supabase
       .from('conversations')
       .insert({
@@ -75,7 +91,7 @@ async function processInboundEmail(payload: Record<string, unknown>): Promise<vo
         direction: 'inbound',
         content: text.slice(0, 5000),
         ai_generated: false,
-        metadata: { from, subject, raw_to: inboundTo }
+        metadata: { from, subject, raw_to: inboundTo, email_id: emailId }
       })
       .select()
       .single();
