@@ -33,6 +33,7 @@ function extractEmail(val: unknown): string {
 async function processInboundEmail(payload: Record<string, unknown>): Promise<void> {
   try {
     const data = (payload.data ?? payload) as Record<string, unknown>;
+    console.log('[INBOUND] Processando:', (data.to as unknown), (data.from as string));
     const from    = (data.from as string) ?? '';
     const toRaw   = Array.isArray(data.to) ? data.to : [data.to];
     const toEmails = (toRaw as unknown[]).map(extractEmail);
@@ -175,11 +176,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
 
-  // 4. Retorna 200 imediatamente — Resend não fica esperando
-  const response = NextResponse.json({ ok: true });
-
-  // 5. Processa em background sem bloquear a resposta
-  processInboundEmail(payload).catch(console.error);
-
-  return response;
+  // 4. Processa de forma síncrona — background task é cancelado pelo Vercel ao fechar o contexto
+  try {
+    await processInboundEmail(payload);
+  } catch (err) {
+    console.error('[INBOUND] Erro no processamento:', err);
+    // Retorna 200 mesmo em erro interno — evita retries infinitos do Resend
+  }
+  return NextResponse.json({ ok: true });
 }
