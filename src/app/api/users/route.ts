@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { hashPassword } from '@/lib/auth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     const { error } = await supabase.from('app_users').insert({
       name: name.trim(),
       email: email.toLowerCase().trim(),
-      password_hash: password
+      password_hash: await hashPassword(password)
     });
     if (error) throw error;
     return NextResponse.json({ ok: true });
