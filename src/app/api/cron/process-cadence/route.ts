@@ -49,7 +49,8 @@ export async function GET() {
         const r = await sendEmail({
           to:      lead.email,
           subject: aiResult.subject ?? `Toque ${touchNumber} — Gráfica Liderset`,
-          body:    aiResult.body
+          body:    aiResult.body,
+          replyTo: `inbound+${lead.id}@eiosteepix.resend.app`
         });
         providerId = r.id;
       }
