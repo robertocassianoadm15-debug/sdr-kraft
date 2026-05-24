@@ -21,6 +21,9 @@ export default function ImportPage() {
   const [creating, setCreating]         = useState(false);
   const [showForm, setShowForm]         = useState(false);
 
+  const [editingId, setEditingId]     = useState<string | null>(null);
+  const [editingName, setEditingName] = useState('');
+
   const [result, setResult]   = useState<any>(null);
   const [loading, setLoading] = useState(false);
   const [dragOver, setDragOver] = useState(false);
@@ -160,7 +163,35 @@ export default function ImportPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         {selectedCampaign?.id === c.id && <span className="text-kraft-700">✓</span>}
-                        <div className="font-semibold text-kraft-900 truncate">{c.name}</div>
+                        {editingId === c.id ? (
+                          <input
+                            autoFocus
+                            value={editingName}
+                            onChange={e => setEditingName(e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                            onBlur={async () => {
+                              if (editingName.trim() && editingName.trim() !== c.name) {
+                                await fetch(`/api/campaigns/${c.id}`, {
+                                  method: 'PATCH',
+                                  headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ name: editingName.trim() })
+                                });
+                                setCampaigns(prev => prev.map(x => x.id === c.id ? { ...x, name: editingName.trim() } : x));
+                              }
+                              setEditingId(null);
+                            }}
+                            onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                            className="font-semibold text-gray-800 bg-transparent border-b border-blue-400 focus:outline-none w-full"
+                          />
+                        ) : (
+                          <span
+                            className="font-semibold text-kraft-900 cursor-pointer hover:text-blue-600 truncate"
+                            title="Clique para editar"
+                            onClick={e => { e.stopPropagation(); setEditingId(c.id); setEditingName(c.name); }}
+                          >
+                            {c.name} ✏️
+                          </span>
+                        )}
                       </div>
                       {c.description && <div className="text-xs text-kraft-600 mt-0.5 truncate">{c.description}</div>}
                       <div className="flex items-center gap-3 mt-1.5 text-xs text-kraft-600">
