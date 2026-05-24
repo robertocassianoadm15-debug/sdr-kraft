@@ -14,8 +14,18 @@ interface Message {
   created_at: string
 }
 
+interface Lead {
+  id: string
+  company_name: string
+  email: string
+  segment: string
+  whatsapp: string | null
+  phone: string | null
+  human_takeover: boolean
+}
+
 interface LeadGroup {
-  lead: { id: string; company_name: string; email: string; segment: string }
+  lead: Lead
   messages: Message[]
   last_activity: string
 }
@@ -46,6 +56,94 @@ function getIntentBadge(intent: string | null) {
   if (!intent) return null
   const cls = map[intent] || 'bg-gray-100 text-gray-600'
   return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{intent}</span>
+}
+
+function LeadCard({ group }: { group: LeadGroup }) {
+  const [takeover, setTakeover] = useState(group.lead.human_takeover || false)
+  const { lead, messages } = group
+
+  const raw = (lead.whatsapp || lead.phone || '').replace(/\D/g, '')
+  const waNum = raw ? (raw.startsWith('55') ? raw : `55${raw}`) : null
+  const waMsg = encodeURIComponent('Olá! Aqui é a Polyana da Gráfica Liderset. Vi que você entrou em contato conosco. Posso te ajudar com algo?')
+
+  return (
+    <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+      {/* Header do lead */}
+      <div className="bg-gray-50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <span className="font-semibold text-gray-800">{lead.company_name}</span>
+          <span className="text-gray-400 text-sm ml-2">{lead.email}</span>
+        </div>
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Botão 1 — Assumir / Voltar Automático */}
+          <button
+            onClick={async () => {
+              const novo = !takeover
+              await fetch('/api/leads/takeover', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ lead_id: lead.id, takeover: novo })
+              })
+              setTakeover(novo)
+            }}
+            className={`text-xs px-3 py-1 rounded-full font-medium transition-colors ${
+              takeover
+                ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+            }`}
+          >
+            {takeover ? '👤 Você assumiu' : '🤖 Automático'}
+          </button>
+
+          {/* Botão 2 — WhatsApp */}
+          {waNum && (
+            <a
+              href={`https://wa.me/${waNum}?text=${waMsg}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs px-3 py-1 rounded-full font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
+            >
+              💬 WhatsApp
+            </a>
+          )}
+
+          {/* Data + contagem */}
+          <span className="text-xs text-gray-400">{formatDate(group.last_activity)}</span>
+          <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
+            {messages.length} msg{messages.length !== 1 ? 's' : ''}
+          </span>
+        </div>
+      </div>
+
+      {/* Mensagens */}
+      <div className="divide-y divide-gray-50">
+        {messages.map(msg => (
+          <div key={msg.id} className={`px-5 py-3 ${msg.direction === 'inbound' ? 'bg-white' : 'bg-blue-50'}`}>
+            <div className="flex items-start gap-3">
+              <span className="text-lg mt-0.5">
+                {msg.direction === 'inbound' ? '📥' : msg.ai_generated ? '🤖' : '👤'}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
+                  <span className="text-xs font-medium text-gray-500">
+                    {msg.direction === 'inbound' ? lead.company_name : getStatus(msg)}
+                  </span>
+                  {msg.intent && getIntentBadge(msg.intent)}
+                  {msg.confidence && (
+                    <span className="text-xs text-gray-400">{msg.confidence}% confiança</span>
+                  )}
+                </div>
+                <p className="text-sm text-gray-700 leading-relaxed">{msg.content}</p>
+              </div>
+              <span className="text-xs text-gray-300 whitespace-nowrap mt-0.5">
+                {formatDate(msg.created_at)}
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
 }
 
 export default function HistoricoPage() {
@@ -112,59 +210,13 @@ export default function HistoricoPage() {
         className="w-full border border-gray-200 rounded-lg px-4 py-2 mb-6 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
       />
 
-      {/* Lista */}
       {filtered.length === 0 && (
         <p className="text-gray-400 text-center py-12">Nenhuma conversa encontrada.</p>
       )}
 
       <div className="space-y-6">
         {filtered.map(group => (
-          <div key={group.lead.id} className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-            {/* Header do lead */}
-            <div className="bg-gray-50 px-5 py-3 flex items-center justify-between">
-              <div>
-                <span className="font-semibold text-gray-800">{group.lead.company_name}</span>
-                <span className="text-gray-400 text-sm ml-2">{group.lead.email}</span>
-              </div>
-              <div className="text-right">
-                <span className="text-xs text-gray-400">{formatDate(group.last_activity)}</span>
-                <span className="ml-3 text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
-                  {group.messages.length} msg{group.messages.length !== 1 ? 's' : ''}
-                </span>
-              </div>
-            </div>
-
-            {/* Mensagens */}
-            <div className="divide-y divide-gray-50">
-              {group.messages.map(msg => (
-                <div key={msg.id} className={`px-5 py-3 ${msg.direction === 'inbound' ? 'bg-white' : 'bg-blue-50'}`}>
-                  <div className="flex items-start gap-3">
-                    <span className="text-lg mt-0.5">
-                      {msg.direction === 'inbound' ? '📥' : msg.ai_generated ? '🤖' : '👤'}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <span className="text-xs font-medium text-gray-500">
-                          {msg.direction === 'inbound'
-                            ? group.lead.company_name
-                            : getStatus(msg)
-                          }
-                        </span>
-                        {msg.intent && getIntentBadge(msg.intent)}
-                        {msg.confidence && (
-                          <span className="text-xs text-gray-400">{msg.confidence}% confiança</span>
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-700 leading-relaxed">{msg.content}</p>
-                    </div>
-                    <span className="text-xs text-gray-300 whitespace-nowrap mt-0.5">
-                      {formatDate(msg.created_at)}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <LeadCard key={group.lead.id} group={group} />
         ))}
       </div>
     </main>

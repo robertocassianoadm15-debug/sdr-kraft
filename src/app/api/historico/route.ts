@@ -22,7 +22,10 @@ export async function GET() {
         id,
         company_name,
         email,
-        segment
+        segment,
+        whatsapp,
+        phone,
+        human_takeover
       )
     `)
     .order('created_at', { ascending: false })

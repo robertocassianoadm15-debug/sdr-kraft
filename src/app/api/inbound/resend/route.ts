@@ -72,7 +72,7 @@ async function processInboundEmail(payload: any) {
   if ((count || 0) >= 3) return;
 
   const { data: lead } = await supabase
-    .from('leads').select('id,company_name,segment,email').eq('id', leadId).single();
+    .from('leads').select('id,company_name,segment,email,human_takeover').eq('id', leadId).single();
   if (!lead) return;
 
   const { data: conv } = await supabase.from('conversations').insert({
@@ -81,6 +81,17 @@ async function processInboundEmail(payload: any) {
     metadata: { from, subject, raw_to: to, email_id: emailId }
   }).select().single();
   if (!conv) return;
+
+  // Verifica se humano assumiu controle — bypassa IA
+  if (lead.human_takeover) {
+    await supabase.from('conversations').update({ awaiting_human: true, auto_replied: false }).eq('id', conv.id);
+    await sendEmail({
+      to: 'polyana@liderset.com.br',
+      subject: `💬 [MANUAL] ${lead.company_name} respondeu`,
+      body: `${lead.company_name} respondeu.\n\nVocê assumiu o controle desta conversa.\n\nResposta: ${text.slice(0, 500)}\n\nAprovar: https://sdr-kraft.vercel.app/inbox`
+    });
+    return;
+  }
 
   const result = await classifyInboundEmail(text, lead.company_name || 'cliente', lead.segment || '');
   const auto = (result.intent === 'info_request' || result.intent === 'not_interested') && (result.confidence ?? 0) >= 80;
