@@ -18,20 +18,22 @@ function extractAddress(addr: AddressObject | AddressObject[] | undefined): stri
 }
 
 export async function fetchUnreadEmails(): Promise<InboundEmail[]> {
+  const user = process.env.GMAIL_USER ?? '';
+  const password = process.env.GMAIL_APP_PASSWORD ?? '';
+  console.log('[IMAP] tentando conectar com user:', user, '| pass length:', password.length);
+
   const client = new ImapFlow({
     host: 'imap.gmail.com',
     port: 993,
     secure: true,
-    auth: {
-      user: process.env.GMAIL_USER ?? '',
-      pass: process.env.GMAIL_APP_PASSWORD ?? '',
-    },
+    auth: { user, pass: password },
     logger: false,
   });
 
   const results: InboundEmail[] = [];
 
   await client.connect();
+  console.log('[IMAP] conectado, abrindo INBOX...');
   try {
     await client.mailboxOpen('INBOX');
 

@@ -152,8 +152,15 @@ export async function GET(req: NextRequest) {
   try {
     emails = await fetchUnreadEmails();
   } catch (err) {
-    console.error('[poll-inbox] IMAP fetch error:', err);
-    return NextResponse.json({ error: 'IMAP fetch failed' }, { status: 500 });
+    const errAny = err as Error;
+    console.error('[POLL-INBOX] erro IMAP:', errAny);
+    return NextResponse.json({
+      error: 'imap_failed',
+      message: errAny?.message || String(err),
+      code: (errAny as any)?.code,
+      response: (errAny as any)?.responseText,
+      stack: errAny?.stack?.split('\n').slice(0, 5).join(' | ')
+    }, { status: 500 });
   }
 
   let processed = 0;
