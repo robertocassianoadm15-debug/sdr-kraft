@@ -50,7 +50,7 @@ export async function GET() {
           to:      lead.email,
           subject: aiResult.subject ?? `Toque ${touchNumber} — Gráfica Liderset`,
           body:    aiResult.body,
-          replyTo: `inbound+${lead.id}@eiosteepix.resend.app`
+          replyTo: `robertocassianoadm15+${lead.id}@gmail.com`
         });
         providerId = r.id;
       }
