@@ -13,10 +13,9 @@ const LOOP_SENDERS = ['noreply', 'mailer-daemon', 'postmaster', 'no-reply'];
 async function processEmail(
   messageId: string,
   from: string,
-  toEmails: string[],
+  to: string,
   subject: string,
   text: string,
-  headers: Array<{ name: string; value: string }>
 ): Promise<void> {
   // Idempotency: skip already-processed message_id
   if (messageId) {
@@ -31,13 +30,12 @@ async function processEmail(
   // Anti-loop guards
   const fromLow = from.toLowerCase();
   if (LOOP_SENDERS.some(s => fromLow.includes(s))) return;
-  if (headers.some(h => h.name.toLowerCase() === 'auto-submitted')) return;
 
   // Extract lead_id from To address containing '+<lead_id>@gmail.com'
-  const inboundTo = toEmails.find(e => e.includes('+') && e.includes('@gmail.com')) ?? '';
-  const match = inboundTo.match(/\+([^@]+)@gmail\.com/);
+  const match = to.match(/\+([^@]+)@gmail\.com/);
   if (!match?.[1]) return;
   const leadId = match[1];
+  const inboundTo = to;
 
   // Fetch lead
   const { data: lead } = await supabase.from('leads').select('*').eq('id', leadId).single();
@@ -172,7 +170,6 @@ export async function GET(req: NextRequest) {
         email.to,
         email.subject,
         email.text,
-        email.headers
       );
       processed++;
     } catch (err) {

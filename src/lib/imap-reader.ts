@@ -1,26 +1,43 @@
 import { ImapFlow } from 'imapflow';
-import { simpleParser, AddressObject } from 'mailparser';
-import { Readable } from 'stream';
+import { simpleParser, ParsedMail } from 'mailparser';
+import { createClient } from '@supabase/supabase-js';
 
-export interface InboundEmail {
+export interface ParsedEmail {
   messageId: string;
   from: string;
-  to: string[];
+  to: string;
   subject: string;
   text: string;
-  headers: Array<{ name: string; value: string }>;
+  uid: number;
 }
 
-function extractAddress(addr: AddressObject | AddressObject[] | undefined): string[] {
-  if (!addr) return [];
-  const list = Array.isArray(addr) ? addr : [addr];
-  return list.flatMap(a => a.value.map(v => v.address ?? '').filter(Boolean));
+function getSupabase() {
+  return createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  );
 }
 
-export async function fetchUnreadEmails(): Promise<InboundEmail[]> {
-  const user = process.env.GMAIL_USER ?? '';
-  const password = process.env.GMAIL_APP_PASSWORD ?? '';
-  console.log('[IMAP] tentando conectar com user:', user, '| pass length:', password.length);
+export async function fetchUnreadEmails(): Promise<ParsedEmail[]> {
+  const supabase = getSupabase();
+
+  const { data: settings, error: settingsErr } = await supabase
+    .from('settings')
+    .select('key, value')
+    .in('key', ['gmail_imap_user', 'gmail_imap_password']);
+
+  if (settingsErr) {
+    throw new Error(`Failed to read settings: ${settingsErr.message}`);
+  }
+
+  const user = settings?.find(s => s.key === 'gmail_imap_user')?.value || '';
+  const passwordRaw = settings?.find(s => s.key === 'gmail_imap_password')?.value || '';
+  const password = passwordRaw.replace(/\s/g, '');
+
+  console.log('[IMAP] credentials loaded from settings | user:', user, '| pass_len:', password.length);
+
+  if (!user) throw new Error('gmail_imap_user not configured in settings');
+  if (!password) throw new Error('gmail_imap_password not configured in settings');
 
   const client = new ImapFlow({
     host: 'imap.gmail.com',
@@ -30,42 +47,42 @@ export async function fetchUnreadEmails(): Promise<InboundEmail[]> {
     logger: false,
   });
 
-  const results: InboundEmail[] = [];
+  const emails: ParsedEmail[] = [];
 
   await client.connect();
-  console.log('[IMAP] conectado, abrindo INBOX...');
+  console.log('[IMAP] connected, opening INBOX...');
+
+  const lock = await client.getMailboxLock('INBOX');
+
   try {
-    await client.mailboxOpen('INBOX');
-
-    for await (const msg of client.fetch({ seen: false }, { source: true, uid: true })) {
+    for await (const msg of client.fetch({ seen: false }, { uid: true, source: true })) {
       try {
-        if (!msg.source) continue;
-        const source = Readable.from(msg.source);
-        const parsed = await simpleParser(source);
+        const parsed: ParsedMail = await simpleParser(msg.source as Buffer);
+        const toAddr = Array.isArray(parsed.to)
+          ? parsed.to[0]?.text || ''
+          : parsed.to?.text || '';
 
-        const messageId = (parsed.messageId ?? String(msg.uid)).replace(/[<>]/g, '');
-        const from = extractAddress(parsed.from)[0] ?? '';
-        const to = extractAddress(parsed.to);
-        const subject = parsed.subject ?? '';
-        const rawHtml = parsed.html;
-        const text = parsed.text ?? (typeof rawHtml === 'string' ? rawHtml : '') ?? '';
-
-        const headers: Array<{ name: string; value: string }> = [];
-        parsed.headers.forEach((value, name) => {
-          headers.push({ name, value: Array.isArray(value) ? value.join(', ') : String(value) });
+        emails.push({
+          messageId: parsed.messageId || '',
+          from: parsed.from?.text || '',
+          to: toAddr,
+          subject: parsed.subject || '',
+          text: (parsed.text || '').trim(),
+          uid: msg.uid as number,
         });
-
-        results.push({ messageId, from, to, subject, text, headers });
-
-        // Mark as seen so we don't reprocess on next poll
-        await client.messageFlagsAdd({ uid: msg.uid }, ['\\Seen'], { uid: true });
-      } catch {
-        // Skip malformed messages
+      } catch (parseErr) {
+        console.error('[IMAP] erro parsing mensagem:', parseErr);
       }
     }
+
+    if (emails.length > 0) {
+      await client.messageFlagsAdd({ seen: false }, ['\\Seen']);
+    }
   } finally {
+    lock.release();
     await client.logout();
   }
 
-  return results;
+  console.log('[IMAP] done | fetched:', emails.length);
+  return emails;
 }
