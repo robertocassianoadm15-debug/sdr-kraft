@@ -18,6 +18,14 @@ interface OutreachInfo {
   whatsapp_touch?: number;
 }
 
+const statusLabels: Record<string, string> = {
+  new: 'NOVO',
+  contacted: 'CONTACTADO',
+  replied: 'RESPONDEU',
+  qualified: 'QUALIFICADO',
+  disqualified: 'DESQUALIFICADO',
+};
+
 export default function ProspectPage() {
   const [campaigns, setCampaigns]       = useState<Campaign[]>([]);
   const [campaignFilter, setCampaignFilter] = useState<string>('all');
@@ -277,7 +285,7 @@ export default function ProspectPage() {
           <button key={s} onClick={() => setStatusFilter(s)}
             className={'px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-wider transition-colors ' +
               (statusFilter === s ? 'bg-kraft-800 text-kraft-50' : 'bg-kraft-100 text-kraft-700 hover:bg-kraft-200')}
-          >{s}</button>
+          >{statusLabels[s] ?? s.toUpperCase()}</button>
         ))}
         <button onClick={() => fetchLeads(statusFilter, campaignFilter)}
           className="px-3 py-1.5 rounded-full text-xs bg-kraft-50 border border-kraft-300 text-kraft-700 hover:bg-kraft-100">
@@ -328,7 +336,7 @@ export default function ProspectPage() {
                   {(lead.whatsapp||lead.phone) && <div>☎ {lead.whatsapp??lead.phone}</div>}
                 </td>
                 <td className="px-4 py-3">
-                  <span className={'badge ' + (statusColors[lead.status] ?? 'bg-gray-100 text-gray-700')}>{lead.status}</span>
+                  <span className={'badge ' + (statusColors[lead.status] ?? 'bg-gray-100 text-gray-700')}>{statusLabels[lead.status] ?? lead.status}</span>
                   {lead.score > 0 && <span className="ml-1 font-mono text-xs text-kraft-600">·{lead.score}</span>}
                 </td>
                 {statusFilter === 'contacted' && (
