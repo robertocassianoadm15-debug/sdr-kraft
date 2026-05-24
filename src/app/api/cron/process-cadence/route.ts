@@ -38,18 +38,37 @@ export async function GET() {
     try {
       const touchNumber = (item.touch_number ?? 1) as 1 | 2 | 3;
 
-      const aiResult = await llmJSON<{ subject?: string; body: string }>([
-        { role: 'system', content: sdrSystemPrompt() },
-        { role: 'user',   content: sdrTouchPrompt(lead, item.channel, touchNumber) }
-      ], { temperature: 0.8, max_tokens: 500 });
+      let subject: string;
+      let body: string;
+
+      if (touchNumber === 1) {
+        // D0: template fixo da Polyana via settings
+        const { data: subjectRow } = await supabase.from('settings').select('value').eq('key', 'email_template_d0_subject').single();
+        const { data: bodyRow }    = await supabase.from('settings').select('value').eq('key', 'email_template_d0_body').single();
+        const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`;
+        subject = (subjectRow?.value || 'Dúvida sobre {{company_name}}')
+          .replace(/{{company_name}}/g, lead.company_name)
+          .replace(/{{contact_name}}/g, contactName);
+        body = (bodyRow?.value || '')
+          .replace(/{{company_name}}/g, lead.company_name)
+          .replace(/{{contact_name}}/g, contactName);
+      } else {
+        // D3 e D7: geração via IA
+        const aiResult = await llmJSON<{ subject?: string; body: string }>([
+          { role: 'system', content: sdrSystemPrompt() },
+          { role: 'user',   content: sdrTouchPrompt(lead, item.channel, touchNumber) }
+        ], { temperature: 0.8, max_tokens: 500 });
+        subject = aiResult.subject ?? `Toque ${touchNumber} — Gráfica Liderset`;
+        body    = aiResult.body;
+      }
 
       // Envia — só email por enquanto na cadência automática
       let providerId = '';
       if (item.channel === 'email' && lead.email) {
         const r = await sendEmail({
           to:      lead.email,
-          subject: aiResult.subject ?? `Toque ${touchNumber} — Gráfica Liderset`,
-          body:    aiResult.body,
+          subject,
+          body,
           replyTo: `inbound+${lead.id}@eiosteepix.resend.app`
         });
         providerId = r.id;
@@ -59,8 +78,8 @@ export async function GET() {
         status:      'sent',
         provider:    'brevo',
         provider_id: providerId,
-        subject:     aiResult.subject ?? null,
-        message:     aiResult.body,
+        subject:     subject,
+        message:     body,
         sent_at:     new Date().toISOString()
       }).eq('id', item.id);
 
