@@ -168,22 +168,22 @@ async function processInboundEmail(payload: Record<string, unknown>): Promise<vo
   }
 }
 
+// DEBUG TEMPORÁRIO — captura payload bruto para inspeção
+// TODO: restaurar processInboundEmail() após confirmar estrutura do payload
 export async function POST(req: NextRequest) {
-  // 1. Raw body (obrigatório antes de qualquer parse para Svix)
   const rawBody = await req.text();
 
-  // 2. Fetch webhook secret
+  // Verificação de assinatura (mantém segurança)
   const { data: setting } = await supabase
     .from('settings').select('value').eq('key', 'resend_webhook_secret').single();
   const webhookSecret = setting?.value ?? '';
 
-  // 3. Verify signature
   if (webhookSecret) {
     const svixId  = req.headers.get('svix-id') ?? '';
     const svixTs  = req.headers.get('svix-timestamp') ?? '';
     const svixSig = req.headers.get('svix-signature') ?? '';
     if (!svixId || !svixTs || !svixSig || !verifySvix(webhookSecret, svixId, svixTs, rawBody, svixSig)) {
-      return NextResponse.json({}, { status: 401 });
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
     }
   }
 
@@ -192,12 +192,18 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'invalid json' }, { status: 400 });
   }
 
-  // 4. Processa de forma síncrona — background task é cancelado pelo Vercel ao fechar o contexto
-  try {
-    await processInboundEmail(payload);
-  } catch (err) {
-    console.error('[INBOUND] Erro no processamento:', err);
-    // Retorna 200 mesmo em erro interno — evita retries infinitos do Resend
-  }
+  // Salva payload bruto no banco para inspeção
+  const emailId = (payload?.data as Record<string, unknown>)?.email_id as string | undefined;
+  await supabase.from('event_log').insert({
+    entity_type: 'debug',
+    entity_id: emailId ?? null,
+    action: 'inbound_raw_payload',
+    actor: 'webhook',
+    metadata: payload
+  });
+
+  console.log('[INBOUND DEBUG] payload keys:', Object.keys(payload));
+  console.log('[INBOUND DEBUG] data keys:', payload.data ? Object.keys(payload.data as object) : 'sem data');
+
   return NextResponse.json({ ok: true });
 }
