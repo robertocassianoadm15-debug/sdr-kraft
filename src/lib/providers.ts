@@ -48,11 +48,13 @@ export async function sendEmail(params: {
     .map(line => `<p style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#222">${escapeHtml(line)}</p>`)
     .join('');
 
-  const replyToEmail = params.replyTo ?? (config.brevo.replyTo || config.brevo.fromEmail);
+  const fromEmail    = config.brevo.fromEmail.toLowerCase().trim();
+  const replyToEmail = (params.replyTo ?? (config.brevo.replyTo || fromEmail)).toLowerCase().trim();
+  const toEmail      = String(params.to).toLowerCase().trim();
 
   const bodyJson = JSON.stringify({
-    sender:      { name: config.brevo.fromName, email: config.brevo.fromEmail },
-    to:          [{ email: params.to }],
+    sender:      { name: config.brevo.fromName, email: fromEmail },
+    to:          [{ email: toEmail }],
     replyTo:     { email: replyToEmail },
     subject:     params.subject,
     htmlContent: html
