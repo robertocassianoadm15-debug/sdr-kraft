@@ -1,4 +1,5 @@
 import { llmJSON } from './llm';
+import { supabase } from './supabase';
 
 export type EmailIntent =
   | 'info_request'
@@ -36,12 +37,15 @@ export async function classifyInboundEmail(
   leadName: string,
   leadSegment: string
 ): Promise<ClassificationResult> {
+  const { data: promptRow } = await supabase.from('settings').select('value').eq('key', 'ia_system_prompt').single();
+  const systemPrompt = promptRow?.value?.trim() || SYSTEM_PROMPT;
+
   const raw = await llmJSON<{
     intent: string;
     confidence: number;
     suggested_reply: string;
   }>([
-    { role: 'system', content: SYSTEM_PROMPT },
+    { role: 'system', content: systemPrompt },
     {
       role: 'user',
       content: `Lead: ${leadName} (${leadSegment || 'sem segmento'})\n\nResposta recebida:\n${emailText.slice(0, 2000)}`

@@ -38,6 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <NavLink href="/users" label="Usuários" />
               <InboxBadgeLink />
               <NavLink href="/historico" label="Histórico" />
+              <NavLink href="/config-ia" label="Config IA" />
               <a
                 href="/api/auth/logout"
                 className="px-4 py-2 rounded-lg text-sm font-medium text-slate-500 hover:bg-red-50 hover:text-red-600 transition-colors"
