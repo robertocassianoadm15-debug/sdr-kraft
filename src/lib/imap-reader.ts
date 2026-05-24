@@ -26,6 +26,12 @@ export async function fetchUnreadEmails(): Promise<ParsedEmail[]> {
     .select('key, value')
     .in('key', ['gmail_imap_user', 'gmail_imap_password']);
 
+  console.log('[IMAP DEBUG] settings query result:', JSON.stringify(settings));
+  console.log('[IMAP DEBUG] settings error:', JSON.stringify(settingsErr));
+  console.log('[IMAP DEBUG] SUPABASE_URL env:', process.env.NEXT_PUBLIC_SUPABASE_URL?.slice(0, 40));
+  console.log('[IMAP DEBUG] SERVICE_ROLE env exists:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.log('[IMAP DEBUG] SERVICE_ROLE prefix:', process.env.SUPABASE_SERVICE_ROLE_KEY?.slice(0, 20));
+
   if (settingsErr) {
     throw new Error(`Failed to read settings: ${settingsErr.message}`);
   }
@@ -34,7 +40,9 @@ export async function fetchUnreadEmails(): Promise<ParsedEmail[]> {
   const passwordRaw = settings?.find(s => s.key === 'gmail_imap_password')?.value || '';
   const password = passwordRaw.replace(/\s/g, '');
 
-  console.log('[IMAP] credentials loaded from settings | user:', user, '| pass_len:', password.length);
+  console.log('[IMAP DEBUG] user value:', user);
+  console.log('[IMAP DEBUG] passwordRaw length:', passwordRaw?.length || 0);
+  console.log('[IMAP DEBUG] password after replace length:', password?.length || 0);
 
   if (!user) throw new Error('gmail_imap_user not configured in settings');
   if (!password) throw new Error('gmail_imap_password not configured in settings');
