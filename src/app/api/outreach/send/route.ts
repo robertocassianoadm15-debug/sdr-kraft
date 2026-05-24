@@ -15,7 +15,8 @@ const Body = z.object({
   dry_run: z.boolean().default(false),
   skip_send: z.boolean().default(false),
   prewritten_subject: z.string().optional(),
-  prewritten_body: z.string().optional()
+  prewritten_body: z.string().optional(),
+  touch_number: z.number().optional().default(1)
 });
 
 export async function POST(req: NextRequest) {
@@ -34,6 +35,25 @@ export async function POST(req: NextRequest) {
     }
     if (body.channel === 'whatsapp' && !lead.whatsapp && !lead.phone) {
       return NextResponse.json({ error: 'lead sem whatsapp' }, { status: 400 });
+    }
+
+    // D0: usa template fixo do settings em vez de chamar IA
+    if ((!body.touch_number || body.touch_number === 1) && !body.prewritten_body) {
+      const [subjectRow, bodyRow] = await Promise.all([
+        supabase.from('settings').select('value').eq('key', 'email_template_d0_subject').single(),
+        supabase.from('settings').select('value').eq('key', 'email_template_d0_body').single()
+      ]);
+      const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`;
+      const subject = (subjectRow.data?.value || 'Dúvida sobre {{company_name}}')
+        .replace(/{{company_name}}/g, lead.company_name || '')
+        .replace(/{{contact_name}}/g, contactName);
+      const tmplBody = (bodyRow.data?.value || '')
+        .replace(/{{company_name}}/g, lead.company_name || '')
+        .replace(/{{contact_name}}/g, contactName);
+      if (body.dry_run) return NextResponse.json({ preview: { subject, body: tmplBody }, dry_run: true });
+      // para envio real, injeta como prewritten para o fluxo normal abaixo
+      body.prewritten_subject = subject;
+      body.prewritten_body    = tmplBody;
     }
 
     // usa texto pré-escrito (editado no modal) ou gera via IA
