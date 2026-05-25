@@ -60,6 +60,11 @@ function getIntentBadge(intent: string | null) {
 
 function LeadCard({ group }: { group: LeadGroup }) {
   const [takeover, setTakeover] = useState(group.lead.human_takeover || false)
+  const [emailModal, setEmailModal] = useState<{ leadId: string; email: string; company: string } | null>(null)
+  const [emailText, setEmailText] = useState('')
+  const [emailSubject, setEmailSubject] = useState('')
+  const [sending, setSending] = useState(false)
+  const [sent, setSent] = useState(false)
   const { lead, messages } = group
 
   const raw = (lead.whatsapp || lead.phone || '').replace(/\D/g, '')
@@ -67,6 +72,7 @@ function LeadCard({ group }: { group: LeadGroup }) {
   const waMsg = encodeURIComponent('Olá! Aqui é a Polyana da Gráfica Liderset. Vi que você entrou em contato conosco. Posso te ajudar com algo?')
 
   return (
+    <>
     <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
       {/* Header do lead */}
       <div className="bg-gray-50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
@@ -107,6 +113,21 @@ function LeadCard({ group }: { group: LeadGroup }) {
             </a>
           )}
 
+          {/* Botão 3 — Email */}
+          {lead.email && (
+            <button
+              onClick={() => {
+                setEmailModal({ leadId: lead.id, email: lead.email, company: lead.company_name })
+                setEmailSubject(`Re: Sacos kraft personalizados — ${lead.company_name}`)
+                setEmailText('')
+                setSent(false)
+              }}
+              className="text-xs px-3 py-1 rounded-full font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
+            >
+              📧 Email
+            </button>
+          )}
+
           {/* Data + contagem */}
           <span className="text-xs text-gray-400">{formatDate(group.last_activity)}</span>
           <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
@@ -143,6 +164,71 @@ function LeadCard({ group }: { group: LeadGroup }) {
         ))}
       </div>
     </div>
+
+    {/* Modal email */}
+    {emailModal && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-800">Enviar email</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{emailModal.email}</p>
+            </div>
+            <button onClick={() => setEmailModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          </div>
+          <input
+            type="text"
+            value={emailSubject}
+            onChange={e => setEmailSubject(e.target.value)}
+            placeholder="Assunto"
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          <textarea
+            value={emailText}
+            onChange={e => setEmailText(e.target.value)}
+            placeholder={`Escreva sua mensagem para ${emailModal.company}...`}
+            rows={6}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
+          />
+          <div className="flex justify-end gap-3 mt-4">
+            <button
+              onClick={() => setEmailModal(null)}
+              className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2"
+            >
+              Cancelar
+            </button>
+            <button
+              disabled={sending || !emailText.trim() || !emailSubject.trim()}
+              onClick={async () => {
+                setSending(true)
+                try {
+                  await fetch('/api/leads/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      lead_id: emailModal.leadId,
+                      subject: emailSubject.trim(),
+                      body: emailText.trim()
+                    })
+                  })
+                  setSent(true)
+                  setTimeout(() => setEmailModal(null), 1500)
+                } finally {
+                  setSending(false)
+                }
+              }}
+              className={`text-sm px-5 py-2 rounded-lg font-medium transition-colors ${
+                sent ? 'bg-green-500 text-white' :
+                'bg-blue-900 text-white hover:bg-blue-800 disabled:opacity-50'
+              }`}
+            >
+              {sending ? 'Enviando...' : sent ? '✅ Enviado!' : 'Enviar email'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   )
 }
 
