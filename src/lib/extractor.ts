@@ -20,6 +20,22 @@ export function detectFormat(filename: string): FileFormat {
   return map[ext] ?? 'unknown';
 }
 
+function findHeaderRow(rows: any[][]): number {
+  const keywords = [
+    'empresa', 'company', 'nome', 'name', 'razao social', 'razão social',
+    'email', 'e-mail', 'telefone', 'phone', 'cidade', 'city',
+    'segmento', 'segment', 'categoria', 'category', 'cnpj'
+  ];
+  for (let i = 0; i < Math.min(10, rows.length); i++) {
+    const cells = rows[i]
+      .filter((v: any) => v != null && v !== '')
+      .map((v: any) => String(v).toLowerCase().trim());
+    const matches = cells.filter((v: string) => keywords.some(k => v.includes(k)));
+    if (matches.length >= 2) return i;
+  }
+  return 0;
+}
+
 export async function extractText(buffer: Buffer, filename: string): Promise<string> {
   const fmt = detectFormat(filename);
 
@@ -30,23 +46,31 @@ export async function extractText(buffer: Buffer, filename: string): Promise<str
     case 'xlsx': {
       const XLSX = await import('xlsx');
       const wb = XLSX.read(buffer, { type: 'buffer' });
-      const rows: string[] = [];
+      const sheets: string[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
-        rows.push(XLSX.utils.sheet_to_csv(ws));
+        const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][];
+        const headerIdx = findHeaderRow(allRows);
+        const trimmed = allRows.slice(headerIdx);
+        const trimmedWs = XLSX.utils.aoa_to_sheet(trimmed);
+        sheets.push(XLSX.utils.sheet_to_csv(trimmedWs));
       }
-      return rows.join('\n');
+      return sheets.join('\n');
     }
 
     case 'xls': {
       const XLSX = await import('xlsx');
       const wb = XLSX.read(buffer, { type: 'buffer' });
-      const rows: string[] = [];
+      const sheets: string[] = [];
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
-        rows.push(XLSX.utils.sheet_to_csv(ws));
+        const allRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' }) as any[][];
+        const headerIdx = findHeaderRow(allRows);
+        const trimmed = allRows.slice(headerIdx);
+        const trimmedWs = XLSX.utils.aoa_to_sheet(trimmed);
+        sheets.push(XLSX.utils.sheet_to_csv(trimmedWs));
       }
-      return rows.join('\n');
+      return sheets.join('\n');
     }
 
     case 'docx': {

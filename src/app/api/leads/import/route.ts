@@ -39,8 +39,13 @@ function parseCSVText(text: string): any[] {
 
 const COMPANY_KEYS = [
   'company_name','empresa','nome','razao_social','nome_empresa','company',
-  'nome_da_empresa','nome_fantasia','fantasia'
+  'nome_da_empresa','nome_fantasia','fantasia',
+  'razao_social_/_nome_fantasia'
 ];
+
+const INVALID_PHONE_VALUES = new Set([
+  'não informado','nao informado','n/a','na','-','sem telefone','sem numero','sem número',''
+]);
 
 function normalizeCSVRow(row: any): LeadInput {
   const get = (...keys: string[]) => {
@@ -65,22 +70,34 @@ function normalizeCSVRow(row: any): LeadInput {
     };
   }
 
-  return {
+  const result: LeadInput = {
     company_name: get(...COMPANY_KEYS) ?? '',
     contact_name: get('contact_name','contato','nome_contato','responsavel','contact',
       'nome_do_contato','proprietario','dono'),
     email:        get('email','e_mail','e-mail','mail','correio',
       'e-mail_de_contato','email_de_contato'),
-    phone:        get('phone','telefone','fone','tel','cel','celular','numero',
+    phone:        get('telefone_comercial','phone','telefone','fone','tel','cel','celular','numero',
       'telefone_whatsapp','telefone_/_whatsapp'),
     whatsapp:     get('whatsapp','zap','wpp','whats',
       'telefone_whatsapp','telefone_/_whatsapp'),
     segment:      get('segment','segmento','ramo','nicho','categoria','atividade','tipo','area',
-      'segmento_nicho','segmento_/_nicho'),
+      'segmento_nicho','segmento_/_nicho','categoria_/_segmento'),
     city:         get('city','cidade','municipio','bairro','regiao','localidade'),
     state:        get('state','estado','uf'),
     website:      get('website','site','url','homepage')
   };
+
+  // email: null se não contiver '@' e '.'
+  if (result.email && (!result.email.includes('@') || !result.email.includes('.'))) {
+    result.email = null;
+  }
+
+  // phone: null se valor for "Não informado" ou similar
+  if (result.phone && INVALID_PHONE_VALUES.has(result.phone.toLowerCase().trim())) {
+    result.phone = null;
+  }
+
+  return result;
 }
 
 async function extractLeadsWithAI(text: string, filename: string): Promise<LeadInput[]> {
