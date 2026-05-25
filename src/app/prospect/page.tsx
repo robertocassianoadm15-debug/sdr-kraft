@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 
 interface Campaign { id: string; name: string; total_leads: number; status: string; }
 interface Lead {
@@ -49,6 +49,11 @@ export default function ProspectPage() {
   const [outreachMap, setOutreachMap]   = useState<Record<string, OutreachInfo>>({});
   const [viewMsg, setViewMsg]           = useState<{ company: string; info: OutreachInfo } | null>(null);
 
+  const [search, setSearch]                   = useState('');
+  const [filterSegment, setFilterSegment]     = useState('');
+  const [filterCity, setFilterCity]           = useState('');
+  const [selectCount, setSelectCount]         = useState('');
+
   useEffect(() => {
     fetch('/api/campaigns').then(r => r.json()).then(j => setCampaigns(j.campaigns ?? []));
   }, []);
@@ -79,7 +84,13 @@ export default function ProspectPage() {
     setSelected(prev => { const s = new Set(prev); s.has(id) ? s.delete(id) : s.add(id); return s; });
   }
   function toggleAll() {
-    setSelected(leads.length > 0 && leads.every(l => selected.has(l.id)) ? new Set() : new Set(leads.map(l => l.id)));
+    const allFiltered = filteredLeads;
+    if (allFiltered.length > 0 && allFiltered.every(l => selected.has(l.id))) {
+      const toRemove = new Set(allFiltered.map(l => l.id));
+      setSelected(new Set([...selected].filter(id => !toRemove.has(id))));
+    } else {
+      setSelected(new Set([...selected, ...allFiltered.map(l => l.id)]));
+    }
   }
 
   async function sendSelected() {
@@ -202,6 +213,25 @@ export default function ProspectPage() {
     return new Date(d).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
   }
 
+  const segments = useMemo(() =>
+    [...new Set(leads.map(l => l.segment).filter(Boolean))].sort() as string[], [leads]);
+  const cities = useMemo(() =>
+    [...new Set(leads.map(l => l.city).filter(Boolean))].sort() as string[], [leads]);
+
+  const filteredLeads = useMemo(() => {
+    const q = search.toLowerCase().trim();
+    return leads.filter(lead => {
+      if (q) {
+        const haystack = [lead.company_name, lead.segment, lead.city, lead.contact_name, lead.email, lead.phone]
+          .join(' ').toLowerCase();
+        if (!haystack.includes(q)) return false;
+      }
+      if (filterSegment && lead.segment !== filterSegment) return false;
+      if (filterCity && lead.city !== filterCity) return false;
+      return true;
+    });
+  }, [leads, search, filterSegment, filterCity]);
+
   const activeCampaign = campaigns.find(c => c.id === campaignFilter);
 
   return (
@@ -293,6 +323,67 @@ export default function ProspectPage() {
         </button>
       </div>
 
+      {/* Barra de busca e filtros */}
+      <div className="flex flex-wrap gap-3 items-center">
+        <input
+          type="text"
+          placeholder="🔍 Buscar em todas as colunas..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          className="flex-1 min-w-[200px] border border-slate-200 rounded-lg px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-200"
+        />
+        <select
+          value={filterSegment}
+          onChange={e => setFilterSegment(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none"
+        >
+          <option value="">Todos os segmentos</option>
+          {segments.map(s => <option key={s} value={s}>{s}</option>)}
+        </select>
+        <select
+          value={filterCity}
+          onChange={e => setFilterCity(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none"
+        >
+          <option value="">Todas as cidades</option>
+          {cities.map(c => <option key={c} value={c}>{c}</option>)}
+        </select>
+        <div className="flex items-center gap-2">
+          <input
+            type="number"
+            min="1"
+            max={filteredLeads.length}
+            placeholder="Qtd"
+            value={selectCount}
+            onChange={e => setSelectCount(e.target.value)}
+            className="w-20 border border-slate-200 rounded px-2 py-2 text-xs text-center focus:outline-none"
+          />
+          <button
+            onClick={() => {
+              const n = Math.min(parseInt(selectCount) || 0, filteredLeads.length);
+              const toSelect = filteredLeads.slice(0, n).map(l => l.id);
+              setSelected(new Set([...selected, ...toSelect]));
+              setSelectCount('');
+            }}
+            className="text-xs bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded text-slate-600"
+          >
+            Selecionar
+          </button>
+        </div>
+        {(search || filterSegment || filterCity) && (
+          <button
+            onClick={() => { setSearch(''); setFilterSegment(''); setFilterCity(''); }}
+            className="text-xs text-red-500 hover:text-red-700 underline"
+          >
+            Limpar filtros
+          </button>
+        )}
+        <span className="text-xs text-slate-400 ml-auto">
+          {filteredLeads.length} de {leads.length} leads
+          {selected.size > 0 && ` · ${selected.size} selecionados`}
+        </span>
+      </div>
+
       {/* Tabela */}
       <div className="card overflow-hidden">
         <table className="w-full text-sm">
@@ -300,7 +391,7 @@ export default function ProspectPage() {
             <tr>
               <th className="px-4 py-3 w-8">
                 <input type="checkbox" className="w-4 h-4 accent-kraft-800"
-                  checked={leads.length > 0 && leads.every(l => selected.has(l.id))}
+                  checked={filteredLeads.length > 0 && filteredLeads.every(l => selected.has(l.id))}
                   onChange={toggleAll} />
               </th>
               <th className="text-left px-4 py-3 stat-label">Empresa</th>
@@ -315,11 +406,13 @@ export default function ProspectPage() {
           <tbody>
             {loading ? (
               <tr><td colSpan={statusFilter === 'contacted' ? 8 : 7} className="text-center py-10 text-kraft-600">Carregando...</td></tr>
-            ) : leads.length === 0 ? (
+            ) : filteredLeads.length === 0 ? (
               <tr><td colSpan={statusFilter === 'contacted' ? 8 : 7} className="text-center py-10 text-kraft-600">
-                Nenhum lead em "{statusFilter}"{campaignFilter !== 'all' ? ` nesta campanha` : ''}.
+                {leads.length === 0
+                  ? `Nenhum lead em "${statusFilter}"${campaignFilter !== 'all' ? ` nesta campanha` : ''}.`
+                  : 'Nenhum lead corresponde aos filtros aplicados.'}
               </td></tr>
-            ) : leads.map(lead => (
+            ) : filteredLeads.map(lead => (
               <tr key={lead.id} className={'border-t border-kraft-200 hover:bg-kraft-50 ' + (selected.has(lead.id) ? 'bg-blue-50 ' : '') + (bdrLead?.id === lead.id ? 'bg-kraft-100' : '')}>
                 <td className="px-4 py-3 w-8">
                   <input type="checkbox" className="w-4 h-4 accent-kraft-800"
@@ -403,7 +496,7 @@ export default function ProspectPage() {
           </tbody>
         </table>
         <div className="px-4 py-2 border-t border-kraft-200 text-xs text-kraft-500 text-right">
-          {leads.length} leads exibidos
+          {filteredLeads.length}{filteredLeads.length !== leads.length ? ` de ${leads.length}` : ''} leads exibidos
         </div>
       </div>
 
