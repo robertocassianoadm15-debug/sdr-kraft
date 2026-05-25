@@ -40,8 +40,13 @@ function parseCSVText(text: string): any[] {
 const COMPANY_KEYS = [
   'company_name','empresa','nome','razao_social','nome_empresa','company',
   'nome_da_empresa','nome_fantasia','fantasia',
-  'razao_social_/_nome_fantasia'
+  'razao_social_/_nome_fantasia',
+  'razaosocial','nomefantasia'
 ];
+
+function looksLikeCNPJ(value: string): boolean {
+  return /^[\d.\-\/]+$/.test(value.trim());
+}
 
 const INVALID_PHONE_VALUES = new Set([
   'não informado','nao informado','n/a','na','-','sem telefone','sem numero','sem número',''
@@ -73,19 +78,32 @@ function normalizeCSVRow(row: any): LeadInput {
   const result: LeadInput = {
     company_name: get(...COMPANY_KEYS) ?? '',
     contact_name: get('contact_name','contato','nome_contato','responsavel','contact',
-      'nome_do_contato','proprietario','dono'),
+      'nome_do_contato','proprietario','dono','socios'),
     email:        get('email','e_mail','e-mail','mail','correio',
       'e-mail_de_contato','email_de_contato'),
     phone:        get('telefone_comercial','phone','telefone','fone','tel','cel','celular','numero',
+      'telefone_1','telefone_2','telefone1','telefone2',
       'telefone_whatsapp','telefone_/_whatsapp'),
     whatsapp:     get('whatsapp','zap','wpp','whats',
       'telefone_whatsapp','telefone_/_whatsapp'),
-    segment:      get('segment','segmento','ramo','nicho','categoria','atividade','tipo','area',
+    segment:      get('cnaeprincipal','cnae_principal',
+      'segment','segmento','ramo','nicho','categoria','atividade','tipo','area',
       'segmento_nicho','segmento_/_nicho','categoria_/_segmento'),
     city:         get('city','cidade','municipio','bairro','regiao','localidade'),
     state:        get('state','estado','uf'),
     website:      get('website','site','url','homepage')
   };
+
+  // company_name: se parece CNPJ, buscar nome real
+  if (result.company_name && looksLikeCNPJ(result.company_name)) {
+    const realName = get('nomefantasia','nome_fantasia','razaosocial','razao_social');
+    if (realName) result.company_name = realName;
+  }
+
+  // segment: limpar prefixo de código CNAE "5611201 - Restaurantes e similares" → "Restaurantes e similares"
+  if (result.segment?.includes(' - ')) {
+    result.segment = result.segment.split(' - ').slice(1).join(' - ');
+  }
 
   // email: null se não contiver '@' e '.'
   if (result.email && (!result.email.includes('@') || !result.email.includes('.'))) {
