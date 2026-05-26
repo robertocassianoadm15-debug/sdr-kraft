@@ -122,31 +122,40 @@ export default function ProspectPage() {
 
   async function previewEmail(lead: Lead) {
     setBusyId(lead.id + ':preview');
-    const r = await fetch('/api/outreach/send', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lead_id: lead.id, channel: 'email', dry_run: true })
-    });
-    const json = await r.json();
-    if (json.preview) {
-      setEditedSubject(json.preview.subject ?? '');
-      setEditedBody(json.preview.body ?? '');
-      setPreview({ lead, data: json.preview });
+    try {
+      const r = await fetch('/api/outreach/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: lead.id, channel: 'email', dry_run: true })
+      });
+      const json = await r.json();
+      if (json.preview) {
+        setEditedSubject(json.preview.subject ?? '');
+        setEditedBody(json.preview.body ?? '');
+        setPreview({ lead, data: json.preview });
+      }
+    } catch { /* ignore — botões liberam via finally */ } finally {
+      setBusyId(null);
     }
-    setBusyId(null);
   }
 
   async function openImageEmailModal(lead: Lead) {
-    const res = await fetch('/api/settings/d0-template')
-    const { subject, body } = await res.json()
     const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`
-    setImgEmailSubject(
-      subject.replace(/{{company_name}}/g, lead.company_name)
-             .replace(/{{contact_name}}/g, contactName)
-    )
-    setImgEmailBody(
-      body.replace(/{{company_name}}/g, lead.company_name)
-          .replace(/{{contact_name}}/g, contactName)
-    )
+    try {
+      const res = await fetch('/api/settings/d0-template')
+      const { subject, body } = await res.json()
+      setImgEmailSubject(
+        subject.replace(/{{company_name}}/g, lead.company_name)
+               .replace(/{{contact_name}}/g, contactName)
+      )
+      setImgEmailBody(
+        body.replace(/{{company_name}}/g, lead.company_name)
+            .replace(/{{contact_name}}/g, contactName)
+      )
+    } catch {
+      // Fallback: abre modal vazio se template não carregar
+      setImgEmailSubject(`Proposta personalizada — ${lead.company_name}`)
+      setImgEmailBody('')
+    }
     setImgEmailUrl('')
     setImgSent(false)
     setImgEmailModal({ id: lead.id, email: lead.email!, company: lead.company_name, contact: contactName })
@@ -154,12 +163,15 @@ export default function ProspectPage() {
 
   async function sendOne(lead: Lead, channel: 'email') {
     setBusyId(lead.id + ':' + channel);
-    await fetch('/api/outreach/send', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lead_id: lead.id, channel, dry_run: false })
-    });
-    setBusyId(null);
-    fetchLeads(statusFilter, campaignFilter);
+    try {
+      await fetch('/api/outreach/send', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lead_id: lead.id, channel, dry_run: false })
+      });
+    } catch { /* ignore — botões liberam via finally */ } finally {
+      setBusyId(null);
+      fetchLeads(statusFilter, campaignFilter);
+    }
   }
 
   async function sendWhatsAppManual(lead: Lead) {
@@ -513,6 +525,25 @@ export default function ProspectPage() {
                           className="btn-ghost text-xs py-1 px-2">
                           Ver msg
                         </button>
+                      )}
+                      {lead.email && (
+                        <button
+                          onClick={() => openImageEmailModal(lead)}
+                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          title="Enviar email com imagem"
+                        >📎</button>
+                      )}
+                    </>)}
+                    {lead.status === 'replied' && (<>
+                      <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
+                        {busyId === lead.id+':email' ? '...' : '✉ Email'}
+                      </button>
+                      {lead.email && (
+                        <button
+                          onClick={() => openImageEmailModal(lead)}
+                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          title="Enviar email com imagem"
+                        >📎</button>
                       )}
                     </>)}
                     {(lead.status==='replied'||lead.status==='contacted') && (
