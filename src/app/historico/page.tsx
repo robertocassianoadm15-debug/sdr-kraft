@@ -73,6 +73,8 @@ function LeadCard({ group }: { group: LeadGroup }) {
   const [emailSubject, setEmailSubject] = useState('')
   const [sending, setSending] = useState(false)
   const [sent, setSent] = useState(false)
+  const [imageUrl, setImageUrl] = useState('')
+  const [uploadingImg, setUploadingImg] = useState(false)
   const { lead, messages } = group
 
   const raw = (lead.whatsapp || lead.phone || '').replace(/\D/g, '')
@@ -132,6 +134,8 @@ function LeadCard({ group }: { group: LeadGroup }) {
                 setEmailSubject(`Re: Sacos kraft personalizados — ${lead.company_name}`)
                 setEmailText('')
                 setSent(false)
+                setImageUrl('')
+                setUploadingImg(false)
               }}
               className="text-xs px-3 py-1 rounded-full font-medium bg-blue-100 text-blue-700 hover:bg-blue-200 transition-colors"
             >
@@ -206,6 +210,37 @@ function LeadCard({ group }: { group: LeadGroup }) {
             rows={6}
             className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-blue-200"
           />
+          {/* Upload de imagem opcional */}
+          <div className="mt-3 border border-dashed border-gray-200 rounded-lg p-3">
+            <p className="text-xs text-gray-400 mb-2">📎 Imagem opcional (JPG, PNG, GIF, WEBP — máx 5MB)</p>
+            {!imageUrl ? (
+              <label className="cursor-pointer text-sm text-blue-600 hover:text-blue-800">
+                <input
+                  type="file"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingImg(true)
+                    const form = new FormData()
+                    form.append('file', file)
+                    const res = await fetch('/api/upload/image', { method: 'POST', body: form })
+                    const data = await res.json()
+                    if (data.url) setImageUrl(data.url)
+                    setUploadingImg(false)
+                  }}
+                />
+                {uploadingImg ? 'Enviando...' : '+ Selecionar imagem'}
+              </label>
+            ) : (
+              <div className="relative inline-block">
+                <img src={imageUrl} alt="Preview" className="max-h-28 rounded object-contain" />
+                <button onClick={() => setImageUrl('')}
+                  className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">×</button>
+              </div>
+            )}
+          </div>
           <div className="flex justify-end gap-3 mt-4">
             <button
               onClick={() => setEmailModal(null)}
@@ -224,7 +259,8 @@ function LeadCard({ group }: { group: LeadGroup }) {
                     body: JSON.stringify({
                       lead_id: emailModal.leadId,
                       subject: emailSubject.trim(),
-                      body: emailText.trim()
+                      body: emailText.trim(),
+                      image_url: imageUrl || undefined
                     })
                   })
                   setSent(true)

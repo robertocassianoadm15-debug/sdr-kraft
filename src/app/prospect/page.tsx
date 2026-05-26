@@ -48,8 +48,13 @@ export default function ProspectPage() {
   const [bdrLoading, setBdrLoading]     = useState(false);
   const [outreachMap, setOutreachMap]   = useState<Record<string, OutreachInfo>>({});
   const [viewMsg, setViewMsg]           = useState<{ company: string; info: OutreachInfo } | null>(null);
-  const [previewImageUrl, setPreviewImageUrl] = useState('');
-  const [uploadingImage, setUploadingImage]   = useState(false);
+  const [imgEmailModal, setImgEmailModal]     = useState<{id:string,email:string,company:string,contact:string}|null>(null);
+  const [imgEmailSubject, setImgEmailSubject] = useState('');
+  const [imgEmailBody, setImgEmailBody]       = useState('');
+  const [imgEmailUrl, setImgEmailUrl]         = useState('');
+  const [imgUploading, setImgUploading]       = useState(false);
+  const [imgSending, setImgSending]           = useState(false);
+  const [imgSent, setImgSent]                 = useState(false);
 
   const [search, setSearch]                   = useState('');
   const [filterSegment, setFilterSegment]     = useState('');
@@ -128,6 +133,23 @@ export default function ProspectPage() {
       setPreview({ lead, data: json.preview });
     }
     setBusyId(null);
+  }
+
+  async function openImageEmailModal(lead: Lead) {
+    const res = await fetch('/api/settings/d0-template')
+    const { subject, body } = await res.json()
+    const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`
+    setImgEmailSubject(
+      subject.replace(/{{company_name}}/g, lead.company_name)
+             .replace(/{{contact_name}}/g, contactName)
+    )
+    setImgEmailBody(
+      body.replace(/{{company_name}}/g, lead.company_name)
+          .replace(/{{contact_name}}/g, contactName)
+    )
+    setImgEmailUrl('')
+    setImgSent(false)
+    setImgEmailModal({ id: lead.id, email: lead.email!, company: lead.company_name, contact: contactName })
   }
 
   async function sendOne(lead: Lead, channel: 'email') {
@@ -466,6 +488,13 @@ export default function ProspectPage() {
                       ) : (
                         <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem nº</span>
                       )}
+                      {lead.email && (
+                        <button
+                          onClick={() => openImageEmailModal(lead)}
+                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
+                          title="Enviar email com imagem"
+                        >📎</button>
+                      )}
                     </>)}
                     {lead.status === 'contacted' && (<>
                       <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
@@ -574,11 +603,11 @@ export default function ProspectPage() {
 
       {/* Modal preview */}
       {preview && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900">Preview — {preview.lead.company_name}</h3>
-              <button onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
+              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
             </div>
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assunto</label>
@@ -597,39 +626,6 @@ export default function ProspectPage() {
                 onChange={e => setEditedBody(e.target.value)}
               />
             </div>
-            {/* Upload de imagem opcional */}
-            <div className="mb-4 border border-dashed border-gray-200 rounded-lg p-3">
-              <p className="text-xs text-gray-400 mb-2">📎 Imagem opcional (JPG, PNG, GIF, WEBP — máx 5MB)</p>
-              {!previewImageUrl ? (
-                <label className="cursor-pointer flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800">
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
-                    className="hidden"
-                    onChange={async (e) => {
-                      const file = e.target.files?.[0]
-                      if (!file) return
-                      setUploadingImage(true)
-                      const form = new FormData()
-                      form.append('file', file)
-                      const res = await fetch('/api/upload/image', { method: 'POST', body: form })
-                      const data = await res.json()
-                      if (data.url) setPreviewImageUrl(data.url)
-                      setUploadingImage(false)
-                    }}
-                  />
-                  {uploadingImage ? 'Enviando...' : '+ Selecionar imagem'}
-                </label>
-              ) : (
-                <div className="relative inline-block">
-                  <img src={previewImageUrl} alt="Preview" className="max-h-32 rounded object-contain" />
-                  <button
-                    onClick={() => setPreviewImageUrl('')}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
-                  >×</button>
-                </div>
-              )}
-            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -637,18 +633,100 @@ export default function ProspectPage() {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       lead_id: preview.lead.id, channel: 'email', dry_run: false,
-                      prewritten_subject: editedSubject, prewritten_body: editedBody,
-                      ...(previewImageUrl ? { image_url: previewImageUrl } : {})
+                      prewritten_subject: editedSubject, prewritten_body: editedBody
                     })
                   });
                   setPreview(null);
-                  setPreviewImageUrl('');
-                  setUploadingImage(false);
                   fetchLeads(statusFilter, campaignFilter);
                 }}
                 className="btn-primary flex-1"
               >✉ Enviar agora</button>
-              <button onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }} className="btn-ghost flex-1">Cancelar</button>
+              <button onClick={() => setPreview(null)} className="btn-ghost flex-1">Cancelar</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal email com imagem */}
+      {imgEmailModal && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="font-semibold text-gray-800">Email com imagem</h3>
+                <p className="text-xs text-gray-400">{imgEmailModal.email}</p>
+              </div>
+              <button onClick={() => setImgEmailModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+            </div>
+            <input
+              type="text"
+              value={imgEmailSubject}
+              onChange={e => setImgEmailSubject(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-purple-200"
+            />
+            <textarea
+              value={imgEmailBody}
+              onChange={e => setImgEmailBody(e.target.value)}
+              rows={6}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-purple-200"
+            />
+            {/* Upload */}
+            <div className="mt-3 border border-dashed border-gray-200 rounded-lg p-3">
+              <p className="text-xs text-gray-400 mb-2">📎 Imagem (JPG, PNG, GIF, WEBP — máx 5MB)</p>
+              {!imgEmailUrl ? (
+                <label className="cursor-pointer text-sm text-purple-600 hover:text-purple-800">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setImgUploading(true)
+                      const form = new FormData()
+                      form.append('file', file)
+                      const res = await fetch('/api/upload/image', { method: 'POST', body: form })
+                      const data = await res.json()
+                      if (data.url) setImgEmailUrl(data.url)
+                      setImgUploading(false)
+                    }}
+                  />
+                  {imgUploading ? 'Enviando...' : '+ Selecionar imagem'}
+                </label>
+              ) : (
+                <div className="relative inline-block">
+                  <img src={imgEmailUrl} alt="Preview" className="max-h-28 rounded object-contain" />
+                  <button onClick={() => setImgEmailUrl('')}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">×</button>
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end gap-3 mt-4">
+              <button onClick={() => setImgEmailModal(null)} className="text-sm text-gray-500 px-4 py-2">Cancelar</button>
+              <button
+                disabled={imgSending || !imgEmailBody.trim() || !imgEmailSubject.trim()}
+                onClick={async () => {
+                  setImgSending(true)
+                  await fetch('/api/leads/send-email', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      lead_id: imgEmailModal.id,
+                      subject: imgEmailSubject.trim(),
+                      body: imgEmailBody.trim(),
+                      image_url: imgEmailUrl || undefined
+                    })
+                  })
+                  setImgSent(true)
+                  setImgSending(false)
+                  setTimeout(() => setImgEmailModal(null), 1500)
+                }}
+                className={`text-sm px-5 py-2 rounded-lg font-medium ${
+                  imgSent ? 'bg-green-500 text-white' : 'bg-purple-700 text-white hover:bg-purple-800 disabled:opacity-50'
+                }`}
+              >
+                {imgSending ? 'Enviando...' : imgSent ? '✅ Enviado!' : 'Enviar email'}
+              </button>
             </div>
           </div>
         </div>
