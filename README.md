@@ -109,3 +109,4 @@ SELECT * FROM event_log WHERE entity_id = 'lead-uuid' ORDER BY created_at;
 - [ ] Lead scoring com ML
 - [ ] Integração CRM (Pipedrive, HubSpot)
 - [ ] Substituir Groq por Claude/GPT (trocar 1 arquivo)
+- [ ] 
