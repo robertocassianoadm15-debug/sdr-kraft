@@ -48,6 +48,8 @@ export default function ProspectPage() {
   const [bdrLoading, setBdrLoading]     = useState(false);
   const [outreachMap, setOutreachMap]   = useState<Record<string, OutreachInfo>>({});
   const [viewMsg, setViewMsg]           = useState<{ company: string; info: OutreachInfo } | null>(null);
+  const [previewImageUrl, setPreviewImageUrl] = useState('');
+  const [uploadingImage, setUploadingImage]   = useState(false);
 
   const [search, setSearch]                   = useState('');
   const [filterSegment, setFilterSegment]     = useState('');
@@ -572,11 +574,11 @@ export default function ProspectPage() {
 
       {/* Modal preview */}
       {preview && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }}>
           <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
             <div className="flex justify-between items-center mb-4">
               <h3 className="text-lg font-bold text-slate-900">Preview — {preview.lead.company_name}</h3>
-              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
+              <button onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
             </div>
             <div className="mb-4">
               <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assunto</label>
@@ -595,6 +597,39 @@ export default function ProspectPage() {
                 onChange={e => setEditedBody(e.target.value)}
               />
             </div>
+            {/* Upload de imagem opcional */}
+            <div className="mb-4 border border-dashed border-gray-200 rounded-lg p-3">
+              <p className="text-xs text-gray-400 mb-2">📎 Imagem opcional (JPG, PNG, GIF, WEBP — máx 5MB)</p>
+              {!previewImageUrl ? (
+                <label className="cursor-pointer flex items-center gap-2 text-sm text-blue-600 hover:text-blue-800">
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/jpg,image/png,image/gif,image/webp"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0]
+                      if (!file) return
+                      setUploadingImage(true)
+                      const form = new FormData()
+                      form.append('file', file)
+                      const res = await fetch('/api/upload/image', { method: 'POST', body: form })
+                      const data = await res.json()
+                      if (data.url) setPreviewImageUrl(data.url)
+                      setUploadingImage(false)
+                    }}
+                  />
+                  {uploadingImage ? 'Enviando...' : '+ Selecionar imagem'}
+                </label>
+              ) : (
+                <div className="relative inline-block">
+                  <img src={previewImageUrl} alt="Preview" className="max-h-32 rounded object-contain" />
+                  <button
+                    onClick={() => setPreviewImageUrl('')}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center"
+                  >×</button>
+                </div>
+              )}
+            </div>
             <div className="flex gap-3">
               <button
                 onClick={() => {
@@ -602,15 +637,18 @@ export default function ProspectPage() {
                     method: 'POST', headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       lead_id: preview.lead.id, channel: 'email', dry_run: false,
-                      prewritten_subject: editedSubject, prewritten_body: editedBody
+                      prewritten_subject: editedSubject, prewritten_body: editedBody,
+                      ...(previewImageUrl ? { image_url: previewImageUrl } : {})
                     })
                   });
                   setPreview(null);
+                  setPreviewImageUrl('');
+                  setUploadingImage(false);
                   fetchLeads(statusFilter, campaignFilter);
                 }}
                 className="btn-primary flex-1"
               >✉ Enviar agora</button>
-              <button onClick={() => setPreview(null)} className="btn-ghost flex-1">Cancelar</button>
+              <button onClick={() => { setPreview(null); setPreviewImageUrl(''); setUploadingImage(false); }} className="btn-ghost flex-1">Cancelar</button>
             </div>
           </div>
         </div>

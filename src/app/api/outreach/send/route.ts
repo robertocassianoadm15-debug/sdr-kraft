@@ -5,6 +5,7 @@ import { logEvent } from '@/lib/logger';
 import { llmJSON } from '@/lib/llm';
 import { sdrSystemPrompt, sdrFirstTouchPrompt } from '@/lib/prompts';
 import { sendEmail, sendWhatsApp } from '@/lib/providers';
+import { sendHtmlEmail } from '@/lib/send-html-email';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
@@ -16,7 +17,8 @@ const Body = z.object({
   skip_send: z.boolean().default(false),
   prewritten_subject: z.string().optional(),
   prewritten_body: z.string().optional(),
-  touch_number: z.number().optional().default(1)
+  touch_number: z.number().optional().default(1),
+  image_url: z.string().optional()
 });
 
 export async function POST(req: NextRequest) {
@@ -121,6 +123,20 @@ export async function POST(req: NextRequest) {
     let providerName = '';
     try {
       if (body.channel === 'email') {
+        if (body.image_url) {
+          // Email com imagem: HTML pré-montado via sendHtmlEmail (providers.ts escapa HTML)
+          const safe = aiResult.body
+            .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+            .replace(/\n/g, '<br>')
+          const htmlContent = `<div style="font-family:sans-serif;max-width:600px"><p style="white-space:pre-wrap;margin:0 0 16px 0">${safe}</p><img src="${body.image_url}" style="max-width:100%;border-radius:8px" alt="Imagem"></div>`
+          const r = await sendHtmlEmail({
+            to:      lead.email!,
+            subject: aiResult.subject ?? 'Olá',
+            htmlContent
+          })
+          providerId   = r.id
+          providerName = 'brevo'
+        } else {
         const r = await sendEmail({
           to: lead.email!,
           subject: aiResult.subject ?? 'Olá',
@@ -128,6 +144,7 @@ export async function POST(req: NextRequest) {
         });
         providerId = r.id;
         providerName = 'brevo';
+        }
       } else {
         const r = await sendWhatsApp({
           to: lead.whatsapp ?? lead.phone!,
