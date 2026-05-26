@@ -60,6 +60,14 @@ function getIntentBadge(intent: string | null) {
 
 function LeadCard({ group }: { group: LeadGroup }) {
   const [takeover, setTakeover] = useState(group.lead.human_takeover || false)
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
   const [emailModal, setEmailModal] = useState<{ leadId: string; email: string; company: string } | null>(null)
   const [emailText, setEmailText] = useState('')
   const [emailSubject, setEmailSubject] = useState('')
@@ -75,7 +83,7 @@ function LeadCard({ group }: { group: LeadGroup }) {
     <>
     <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
       {/* Header do lead */}
-      <div className="bg-gray-50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap">
+      <div className="bg-gray-50 px-5 py-3 flex items-center justify-between gap-3 flex-wrap cursor-pointer" onClick={() => toggleExpand(lead.id)}>
         <div>
           <span className="font-semibold text-gray-800">{lead.company_name}</span>
           <span className="text-gray-400 text-sm ml-2">{lead.email}</span>
@@ -83,7 +91,8 @@ function LeadCard({ group }: { group: LeadGroup }) {
         <div className="flex items-center gap-2 flex-wrap">
           {/* Botão 1 — Assumir / Voltar Automático */}
           <button
-            onClick={async () => {
+            onClick={async (e) => {
+              e.stopPropagation()
               const novo = !takeover
               await fetch('/api/leads/takeover', {
                 method: 'POST',
@@ -107,6 +116,7 @@ function LeadCard({ group }: { group: LeadGroup }) {
               href={`https://wa.me/${waNum}?text=${waMsg}`}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={e => e.stopPropagation()}
               className="text-xs px-3 py-1 rounded-full font-medium bg-green-100 text-green-700 hover:bg-green-200 transition-colors"
             >
               💬 WhatsApp
@@ -116,7 +126,8 @@ function LeadCard({ group }: { group: LeadGroup }) {
           {/* Botão 3 — Email */}
           {lead.email && (
             <button
-              onClick={() => {
+              onClick={e => {
+                e.stopPropagation()
                 setEmailModal({ leadId: lead.id, email: lead.email, company: lead.company_name })
                 setEmailSubject(`Re: Sacos kraft personalizados — ${lead.company_name}`)
                 setEmailText('')
@@ -133,10 +144,14 @@ function LeadCard({ group }: { group: LeadGroup }) {
           <span className="text-xs bg-gray-200 text-gray-600 px-2 py-0.5 rounded-full">
             {messages.length} msg{messages.length !== 1 ? 's' : ''}
           </span>
+          <span className="text-gray-400 text-xs ml-2">
+            {expandedIds.has(lead.id) ? '▼' : '▶'}
+          </span>
         </div>
       </div>
 
       {/* Mensagens */}
+      {expandedIds.has(lead.id) && (
       <div className="divide-y divide-gray-50">
         {messages.map(msg => (
           <div key={msg.id} className={`px-5 py-3 ${msg.direction === 'inbound' ? 'bg-white' : 'bg-blue-50'}`}>
@@ -163,6 +178,7 @@ function LeadCard({ group }: { group: LeadGroup }) {
           </div>
         ))}
       </div>
+      )}
     </div>
 
     {/* Modal email */}
