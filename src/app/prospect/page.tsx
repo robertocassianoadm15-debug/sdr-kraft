@@ -8,6 +8,7 @@ interface Lead {
   email: string | null; whatsapp: string | null; phone: string | null;
   segment: string | null; city: string | null; state: string | null;
   status: string; score: number; campaign_id: string | null;
+  human_takeover?: boolean;
 }
 interface Preview { subject?: string; body: string; }
 interface OutreachInfo {
@@ -47,6 +48,7 @@ export default function ProspectPage() {
   const [bdrResult, setBdrResult]       = useState<{ reply: string; next_status: string; intent_score: number } | null>(null);
   const [bdrLoading, setBdrLoading]     = useState(false);
   const [outreachMap, setOutreachMap]   = useState<Record<string, OutreachInfo>>({});
+  const [takeovers, setTakeovers]       = useState<Record<string, boolean>>({});
   const [viewMsg, setViewMsg]           = useState<{ company: string; info: OutreachInfo } | null>(null);
   const [imgEmailModal, setImgEmailModal]     = useState<{id:string,email:string,company:string,contact:string}|null>(null);
   const [imgEmailSubject, setImgEmailSubject] = useState('');
@@ -71,7 +73,11 @@ export default function ProspectPage() {
     if (campaign !== 'all') params.set('campaign_id', campaign);
     const r = await fetch(`/api/leads?${params}`);
     const json = await r.json();
-    setLeads(json.leads ?? []);
+    const fetchedLeads: Lead[] = json.leads ?? [];
+    setLeads(fetchedLeads);
+    const initial: Record<string, boolean> = {};
+    fetchedLeads.forEach(l => { initial[l.id] = l.human_takeover || false; });
+    setTakeovers(initial);
     setLoading(false);
   }
 
@@ -455,7 +461,10 @@ export default function ProspectPage() {
                     checked={selected.has(lead.id)} onChange={() => toggleSelect(lead.id)} />
                 </td>
                 <td className="px-4 py-3">
-                  <div className="font-medium text-kraft-900">{lead.company_name}</div>
+                  <div className="font-medium text-kraft-900">
+                    {lead.company_name}
+                    {takeovers[lead.id] && <span className="text-xs text-orange-500 ml-1">● assumido</span>}
+                  </div>
                   {lead.contact_name && <div className="text-xs text-kraft-500">{lead.contact_name}</div>}
                 </td>
                 <td className="px-4 py-3 text-kraft-700 text-xs">{lead.segment ?? '—'}</td>
@@ -533,6 +542,25 @@ export default function ProspectPage() {
                           title="Enviar email com imagem"
                         >📎</button>
                       )}
+                      <button
+                        onClick={async () => {
+                          const novo = !takeovers[lead.id];
+                          await fetch('/api/leads/takeover', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ lead_id: lead.id, takeover: novo })
+                          });
+                          setTakeovers(prev => ({ ...prev, [lead.id]: novo }));
+                        }}
+                        className={`text-xs px-2 py-1 rounded-full font-medium transition-colors ${
+                          takeovers[lead.id]
+                            ? 'bg-orange-100 text-orange-700 hover:bg-orange-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title={takeovers[lead.id] ? 'Polyana assumiu — clique para voltar ao automático' : 'Assumir este lead'}
+                      >
+                        {takeovers[lead.id] ? '👤 Assumido' : '🤖 Auto'}
+                      </button>
                     </>)}
                     {lead.status === 'replied' && (<>
                       <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">

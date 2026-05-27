@@ -29,7 +29,7 @@ export async function GET() {
     const { data: lead } = await supabase
       .from('leads').select('*').eq('id', item.lead_id).single();
 
-    if (!lead || !['new', 'contacted'].includes(lead.status)) {
+    if (!lead || !['new', 'contacted'].includes(lead.status) || lead.human_takeover) {
       await supabase.from('outreach').update({ status: 'cancelled' }).eq('id', item.id);
       cancelled++;
       continue;
