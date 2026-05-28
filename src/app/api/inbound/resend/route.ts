@@ -107,7 +107,7 @@ async function processInboundEmail(payload: any) {
       to: lead.email,
       subject: subject.startsWith('Re:') ? subject : `Re: ${subject}`,
       body: result.suggested_reply,
-      replyTo: `inbound+${leadId}@eiosteepix.resend.app`,
+      replyTo: `inbound+${leadId}@liderset.com`,
     });
     await supabase.from('conversations').insert({
       lead_id: leadId, channel: 'email', direction: 'outbound',

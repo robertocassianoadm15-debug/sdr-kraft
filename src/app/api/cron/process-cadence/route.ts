@@ -69,7 +69,7 @@ export async function GET() {
           to:      lead.email,
           subject,
           body,
-          replyTo: `inbound+${lead.id}@eiosteepix.resend.app`
+          replyTo: `inbound+${lead.id}@liderset.com`
         });
         providerId = r.id;
       }
