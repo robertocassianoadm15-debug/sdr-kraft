@@ -23,8 +23,20 @@ export async function GET() {
       .order('updated_at', { ascending: false })
       .limit(10);
 
+    const todayStartBR = new Date();
+    todayStartBR.setUTCHours(3, 0, 0, 0); // 00:00 Brasília = 03:00 UTC
+    if (todayStartBR > new Date()) todayStartBR.setUTCDate(todayStartBR.getUTCDate() - 1);
+
+    const { count: sentToday } = await supabase
+      .from('event_log')
+      .select('*', { count: 'exact', head: true })
+      .eq('action', 'email_send_attempt')
+      .gte('created_at', todayStartBR.toISOString())
+      .filter('metadata->>success', 'eq', 'true');
+
     return NextResponse.json({
       metrics,
+      sent_today: sentToday ?? 0,
       recent_events: recentEvents ?? [],
       hot_leads: hotLeads ?? []
     });

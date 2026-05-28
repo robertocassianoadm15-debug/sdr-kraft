@@ -43,6 +43,7 @@ export default function DashboardPage() {
         <Stat label="Desqualificados" value={m.leads_disqualified ?? 0} />
         <Stat label="Msgs enviadas"   value={m.msgs_sent ?? 0} />
         <Stat label="Reply rate"      value={`${m.reply_rate_pct ?? 0}%`} accent />
+        <Stat label="Enviados hoje" value={data?.sent_today ?? 0} accent />
       </div>
 
       <div className="grid md:grid-cols-2 gap-6">
