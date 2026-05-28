@@ -22,6 +22,25 @@ const LeadSchema = z.object({
 });
 type LeadInput = z.infer<typeof LeadSchema>;
 
+function normalizeEmail(raw: string | null | undefined): { email: string | null; valid: boolean } {
+  if (!raw) return { email: null, valid: true };
+  const e = String(raw).toLowerCase().trim();
+  if (!e) return { email: null, valid: true };
+  if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(e)) return { email: null, valid: false };
+  const [user, domainRaw] = e.split('@');
+  let domain = domainRaw;
+  const domainFixes: Record<string, string> = {
+    'gmaill.com': 'gmail.com', 'gmail.com.br': 'gmail.com', 'gmai1.com': 'gmail.com',
+    'gmail.comn': 'gmail.com', 'ggmail.com': 'gmail.com', 'gmial.com': 'gmail.com',
+    'gnail.com': 'gmail.com', 'hotmail.om': 'hotmail.com', 'hotmial.com': 'hotmail.com',
+    'hotmal.com': 'hotmail.com', 'otmail.com': 'hotmail.com', 'outlok.com': 'outlook.com',
+    'outloo.com': 'outlook.com',
+  };
+  if (domainFixes[domain]) domain = domainFixes[domain];
+  if (/\.(con|cmo|cm|comm|cpm|vom|om|coml|c0m)$/.test(domain)) return { email: null, valid: false };
+  return { email: `${user}@${domain}`, valid: true };
+}
+
 function parseCSVText(text: string): any[] {
   // detecta separador automaticamente (v\u00edrgula ou ponto-e-v\u00edrgula)
   const separator = text.split('\n')[0].includes(';') ? ';' : ',';
@@ -169,7 +188,7 @@ export async function POST(req: NextRequest) {
         valid.push({
           company_name: r.data.company_name,
           contact_name: r.data.contact_name || null,
-          email:        r.data.email || null,
+          email:        normalizeEmail(r.data.email).email,
           phone:        r.data.phone || null,
           whatsapp:     r.data.whatsapp || r.data.phone || null,
           segment:      r.data.segment || null,
