@@ -40,7 +40,9 @@ export async function sendEmail(params: {
   body: string;
   replyTo?: string;
 }): Promise<{ id: string }> {
-  if (!config.brevo.apiKey)   throw new Error('BREVO_API_KEY não configurado');
+  // Provider: Resend. API key e remetente lidos das envs (config.brevo.* reaproveitado).
+  const apiKey = process.env.RESEND_API_KEY || config.brevo.apiKey;
+  if (!apiKey)                 throw new Error('RESEND_API_KEY não configurado');
   if (!config.brevo.fromEmail) throw new Error('FROM_EMAIL não configurado');
 
   const html = params.body
@@ -49,19 +51,20 @@ export async function sendEmail(params: {
     .join('');
 
   const fromEmail    = config.brevo.fromEmail.toLowerCase().trim();
+  const fromName     = config.brevo.fromName;
   const replyToEmail = (params.replyTo ?? (config.brevo.replyTo || fromEmail)).toLowerCase().trim();
   const toEmail      = String(params.to).toLowerCase().trim();
 
   const bodyJson = JSON.stringify({
-    sender:      { name: config.brevo.fromName, email: fromEmail },
-    to:          [{ email: toEmail }],
-    replyTo:     { email: replyToEmail },
-    subject:     params.subject,
-    htmlContent: html
+    from:     `${fromName} <${fromEmail}>`,
+    to:       [toEmail],
+    reply_to: replyToEmail,
+    subject:  params.subject,
+    html
   });
 
   const MAX_ATTEMPTS = 3;
-  let lastError: Error = new Error('Brevo: todas as tentativas falharam');
+  let lastError: Error = new Error('Resend: todas as tentativas falharam');
 
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
     if (attempt > 1) {
@@ -75,10 +78,10 @@ export async function sendEmail(params: {
 
     // Isola apenas o fetch — erros de rede/timeout ficam aqui
     try {
-      res = await fetch('https://api.brevo.com/v3/smtp/email', {
+      res = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          'api-key': config.brevo.apiKey,
+          Authorization: `Bearer ${apiKey}`,
           'Content-Type': 'application/json',
           Accept: 'application/json'
         },
@@ -90,7 +93,7 @@ export async function sendEmail(params: {
       const duration_ms = Date.now() - t0;
       if (err.name === 'AbortError') {
         await logEmailAttempt({ attempt, success: false, status_code: null, error: 'timeout (10s)', duration_ms, to: params.to, subject: params.subject });
-        lastError = new Error(`Brevo timeout na tentativa ${attempt}`);
+        lastError = new Error(`Resend timeout na tentativa ${attempt}`);
         continue;
       }
       throw err; // erro de rede permanente — não retentar
@@ -102,7 +105,7 @@ export async function sendEmail(params: {
     if (res.ok) {
       const json = await res.json();
       await logEmailAttempt({ attempt, success: true, status_code: res.status, error: null, duration_ms, to: params.to, subject: params.subject });
-      return { id: json.messageId ?? 'sent' };
+      return { id: json.id ?? 'sent' };
     }
 
     const text = await res.text();
@@ -110,10 +113,10 @@ export async function sendEmail(params: {
 
     if (!isRetryable(res.status)) {
       // 4xx (exceto 429): erro do chamador, não adianta retentar
-      throw new Error(`Brevo error ${res.status}: ${text}`);
+      throw new Error(`Resend error ${res.status}: ${text}`);
     }
 
-    lastError = new Error(`Brevo error ${res.status}: ${text}`);
+    lastError = new Error(`Resend error ${res.status}: ${text}`);
     // 5xx ou 429: continua para próxima tentativa
   }
 
