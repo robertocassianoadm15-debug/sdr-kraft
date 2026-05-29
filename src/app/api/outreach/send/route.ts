@@ -104,6 +104,23 @@ export async function POST(req: NextRequest) {
       }).select().single();
     if (orErr) throw orErr;
 
+    if (body.channel === 'email') {
+      const { data: existing } = await supabase
+        .from('outreach')
+        .select('touch_number')
+        .eq('lead_id', lead.id)
+        .gt('touch_number', 1);
+
+      if (!existing || existing.length === 0) {
+        const now = Date.now();
+        const followups = [
+          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 2, scheduled_at: new Date(now + 10*24*60*60*1000).toISOString() },
+          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 3, scheduled_at: new Date(now + 20*24*60*60*1000).toISOString() },
+        ];
+        await supabase.from('outreach').insert(followups);
+      }
+    }
+
     // modo simulado quando RESEND_API_KEY é placeholder
     if (process.env.RESEND_API_KEY === 'placeholder') {
       await supabase.from('outreach').update({
