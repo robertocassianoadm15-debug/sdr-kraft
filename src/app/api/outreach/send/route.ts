@@ -92,6 +92,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ ok: true, preview: aiResult });
     }
 
+    if (body.channel === 'email') {
+      const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const { count: recentCount } = await supabase
+        .from('outreach')
+        .select('*', { count: 'exact', head: true })
+        .eq('lead_id', lead.id)
+        .eq('channel', 'email')
+        .eq('status', 'sent')
+        .gte('sent_at', oneDayAgo);
+
+      if (recentCount && recentCount > 0) {
+        return NextResponse.json(
+          { error: 'Email já enviado para este lead nas últimas 24h. Aguarde antes de reenviar.' },
+          { status: 409 }
+        );
+      }
+    }
+
     // grava outreach (pending)
     const { data: outreach, error: orErr } = await supabase
       .from('outreach').insert({
