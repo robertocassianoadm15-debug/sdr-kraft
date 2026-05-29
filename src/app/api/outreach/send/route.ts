@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
       if (!existing || existing.length === 0) {
         const now = Date.now();
         const followups = [
-          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 2, scheduled_at: new Date(now + 10*24*60*60*1000).toISOString() },
-          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 3, scheduled_at: new Date(now + 20*24*60*60*1000).toISOString() },
+          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 2, scheduled_at: new Date(now + 10*24*60*60*1000).toISOString(), message: 'Follow-up agendado' },
+          { lead_id: lead.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 3, scheduled_at: new Date(now + 20*24*60*60*1000).toISOString(), message: 'Follow-up agendado' },
         ];
-        await supabase.from('outreach').insert(followups);
+        await supabase.from('outreach').insert(followups).throwOnError();
       }
     }
 

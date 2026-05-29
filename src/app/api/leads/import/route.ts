@@ -217,11 +217,11 @@ export async function POST(req: NextRequest) {
         const d10 = new Date(now.getTime() + 10 * 24 * 60 * 60 * 1000);
         const d20 = new Date(now.getTime() + 20 * 24 * 60 * 60 * 1000);
         const cadence = leadsWithEmail.flatMap(l => [
-          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'pending',   touch_number: 1, scheduled_at: now.toISOString() },
-          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 2, scheduled_at: d10.toISOString() },
-          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 3, scheduled_at: d20.toISOString() },
+          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'pending',   touch_number: 1, scheduled_at: now.toISOString(), message: 'Toque inicial pending' },
+          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 2, scheduled_at: d10.toISOString(), message: 'Follow-up agendado' },
+          { lead_id: l.id, channel: 'email', direction: 'outbound', status: 'scheduled', touch_number: 3, scheduled_at: d20.toISOString(), message: 'Follow-up agendado' },
         ]);
-        await supabase.from('outreach').insert(cadence);
+        await supabase.from('outreach').insert(cadence).throwOnError();
       }
     }
 
