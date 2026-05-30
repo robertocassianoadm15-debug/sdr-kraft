@@ -520,11 +520,8 @@ export default function ProspectPage() {
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1 flex-wrap">
                     {lead.status === 'new' && (<>
-                      <button onClick={() => previewEmail(lead)} disabled={!lead.email || busyId !== null} className="btn-ghost text-xs py-1 px-2 disabled:opacity-40">
-                        {busyId === lead.id+':preview' ? '...' : 'Preview'}
-                      </button>
-                      <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
-                        {busyId === lead.id+':email' ? '...' : '✉'}
+                      <button onClick={() => previewEmail(lead)} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
+                        {busyId === lead.id+':preview' ? '...' : '✉ Editar e Enviar'}
                       </button>
                       {(lead.whatsapp || lead.phone) ? (
                         <button onClick={() => sendWhatsAppManual(lead)} disabled={busyId !== null}

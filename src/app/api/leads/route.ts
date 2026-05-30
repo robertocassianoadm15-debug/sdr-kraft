@@ -34,7 +34,8 @@ export async function DELETE(req: NextRequest) {
     if (!ids || !Array.isArray(ids) || ids.length === 0) {
       return NextResponse.json({ error: 'ids obrigatório' }, { status: 400 });
     }
-    // Deleta outreach vinculado primeiro (FK constraint)
+    // Deleta dependentes com FK antes dos leads
+    await supabase.from('conversations').delete().in('lead_id', ids);
     await supabase.from('outreach').delete().in('lead_id', ids);
     // Deleta os leads
     const { count } = await supabase
