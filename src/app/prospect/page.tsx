@@ -126,6 +126,26 @@ export default function ProspectPage() {
     fetchLeads(statusFilter, campaignFilter);
   }
 
+  const handleDeleteSelected = async () => {
+    if (selected.size === 0) return;
+    const confirmMsg = `Excluir ${selected.size} lead(s) selecionado(s)? Esta ação não pode ser desfeita.`;
+    if (!window.confirm(confirmMsg)) return;
+    try {
+      const res = await fetch('/api/leads', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...selected] })
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Erro ao excluir');
+      setSelected(new Set());
+      await fetchLeads(statusFilter, campaignFilter);
+      alert(`${data.deleted} lead(s) excluído(s) com sucesso.`);
+    } catch (err: any) {
+      alert('Erro: ' + err.message);
+    }
+  };
+
   async function previewEmail(lead: Lead) {
     setBusyId(lead.id + ':preview');
     try {
@@ -293,6 +313,11 @@ export default function ProspectPage() {
           {selected.size > 0 && (
             <button onClick={sendSelected} disabled={bulkLoading} className="btn-primary disabled:opacity-50 bg-blue-700 hover:bg-blue-800">
               {bulkLoading ? 'Enviando...' : `☑ Enviar selecionados (${selected.size})`}
+            </button>
+          )}
+          {selected.size > 0 && statusFilter === 'new' && (
+            <button onClick={handleDeleteSelected} className="btn-primary disabled:opacity-50 bg-red-600 hover:bg-red-700">
+              🗑 Excluir selecionados ({selected.size})
             </button>
           )}
           <button onClick={sendBulk} disabled={bulkLoading || statusFilter !== 'new'} className="btn-primary disabled:opacity-50">

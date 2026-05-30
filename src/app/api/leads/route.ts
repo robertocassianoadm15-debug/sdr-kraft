@@ -27,3 +27,23 @@ export async function GET(req: NextRequest) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ leads: data ?? [] });
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { ids } = await req.json() as { ids: string[] };
+    if (!ids || !Array.isArray(ids) || ids.length === 0) {
+      return NextResponse.json({ error: 'ids obrigatório' }, { status: 400 });
+    }
+    // Deleta outreach vinculado primeiro (FK constraint)
+    await supabase.from('outreach').delete().in('lead_id', ids);
+    // Deleta os leads
+    const { count } = await supabase
+      .from('leads')
+      .delete({ count: 'exact' })
+      .in('id', ids)
+      .eq('status', 'new'); // segurança: só apaga leads new
+    return NextResponse.json({ ok: true, deleted: count ?? 0 });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
