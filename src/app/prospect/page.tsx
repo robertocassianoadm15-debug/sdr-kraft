@@ -57,6 +57,7 @@ export default function ProspectPage() {
   const [search, setSearch]                   = useState('');
   const [filterSegment, setFilterSegment]     = useState('');
   const [filterCity, setFilterCity]           = useState('');
+  const [filterDias, setFilterDias]           = useState('');
   const [selectCount, setSelectCount]         = useState('');
 
   useEffect(() => {
@@ -268,9 +269,18 @@ export default function ProspectPage() {
       }
       if (filterSegment && lead.segment !== filterSegment) return false;
       if (filterCity && lead.city !== filterCity) return false;
+      if (filterDias) {
+        const dias = parseInt(filterDias);
+        if (!isNaN(dias)) {
+          const corte = new Date();
+          corte.setDate(corte.getDate() - dias);
+          const ultimo = (lead as any).last_sent_at;
+          if (!ultimo || new Date(ultimo) < corte) return false;
+        }
+      }
       return true;
     });
-  }, [leads, search, filterSegment, filterCity]);
+  }, [leads, search, filterSegment, filterCity, filterDias]);
 
   const activeCampaign = campaigns.find(c => c.id === campaignFilter);
 
@@ -393,6 +403,18 @@ export default function ProspectPage() {
           <option value="">Todas as cidades</option>
           {cities.map(c => <option key={c} value={c}>{c}</option>)}
         </select>
+        <select
+          value={filterDias}
+          onChange={e => setFilterDias(e.target.value)}
+          className="border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-600 focus:outline-none"
+        >
+          <option value="">Último envio: todos</option>
+          <option value="1">Últimas 24h</option>
+          <option value="3">Últimos 3 dias</option>
+          <option value="7">Últimos 7 dias</option>
+          <option value="15">Últimos 15 dias</option>
+          <option value="30">Últimos 30 dias</option>
+        </select>
         <div className="flex items-center gap-2">
           <input
             type="number"
@@ -415,9 +437,9 @@ export default function ProspectPage() {
             Selecionar
           </button>
         </div>
-        {(search || filterSegment || filterCity) && (
+        {(search || filterSegment || filterCity || filterDias) && (
           <button
-            onClick={() => { setSearch(''); setFilterSegment(''); setFilterCity(''); }}
+            onClick={() => { setSearch(''); setFilterSegment(''); setFilterCity(''); setFilterDias(''); }}
             className="text-xs text-red-500 hover:text-red-700 underline"
           >
             Limpar filtros

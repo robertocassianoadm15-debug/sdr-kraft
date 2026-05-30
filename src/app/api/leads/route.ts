@@ -25,6 +25,31 @@ export async function GET(req: NextRequest) {
 
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (data && data.length > 0) {
+    const leadIds = data.map(l => l.id);
+    const { data: lastSentData } = await supabase
+      .from('outreach')
+      .select('lead_id, sent_at')
+      .in('lead_id', leadIds)
+      .eq('status', 'sent')
+      .order('sent_at', { ascending: false });
+
+    const lastSentMap: Record<string, string> = {};
+    (lastSentData ?? []).forEach(o => {
+      if (!lastSentMap[o.lead_id]) {
+        lastSentMap[o.lead_id] = o.sent_at;
+      }
+    });
+
+    const enriched = data.map(l => ({
+      ...l,
+      last_sent_at: lastSentMap[l.id] ?? null
+    }));
+
+    return NextResponse.json({ leads: enriched });
+  }
+
   return NextResponse.json({ leads: data ?? [] });
 }
 
