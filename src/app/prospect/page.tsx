@@ -10,7 +10,6 @@ interface Lead {
   status: string; score: number; campaign_id: string | null;
   human_takeover?: boolean;
 }
-interface Preview { subject?: string; body: string; }
 interface OutreachInfo {
   lead_id: string;
   email_sent_at?: string;
@@ -39,9 +38,6 @@ export default function ProspectPage() {
   const [bulkResult, setBulkResult]           = useState<string | null>(null);
   const [cadenceLoading, setCadenceLoading]   = useState(false);
   const [cadenceResult, setCadenceResult]     = useState<string | null>(null);
-  const [preview, setPreview]           = useState<{ lead: Lead; data: Preview } | null>(null);
-  const [editedSubject, setEditedSubject] = useState('');
-  const [editedBody, setEditedBody]       = useState('');
   const [bdrLead, setBdrLead]           = useState<Lead | null>(null);
   const [bdrChannel, setBdrChannel]     = useState<'email' | 'whatsapp'>('email');
   const [bdrMsg, setBdrMsg]             = useState('');
@@ -145,24 +141,6 @@ export default function ProspectPage() {
       alert('Erro: ' + err.message);
     }
   };
-
-  async function previewEmail(lead: Lead) {
-    setBusyId(lead.id + ':preview');
-    try {
-      const r = await fetch('/api/outreach/send', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ lead_id: lead.id, channel: 'email', dry_run: true })
-      });
-      const json = await r.json();
-      if (json.preview) {
-        setEditedSubject(json.preview.subject ?? '');
-        setEditedBody(json.preview.body ?? '');
-        setPreview({ lead, data: json.preview });
-      }
-    } catch { /* ignore — botões liberam via finally */ } finally {
-      setBusyId(null);
-    }
-  }
 
   async function openImageEmailModal(lead: Lead) {
     const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`
@@ -316,8 +294,8 @@ export default function ProspectPage() {
             </button>
           )}
           {selected.size > 0 && statusFilter === 'new' && (
-            <button onClick={handleDeleteSelected} className="btn-primary disabled:opacity-50 bg-red-600 hover:bg-red-700">
-              🗑 Excluir selecionados ({selected.size})
+            <button onClick={handleDeleteSelected} className="px-4 py-2 text-sm font-medium rounded-lg bg-red-600 hover:bg-red-700 text-white transition-colors">
+              🗑 Excluir ({selected.size})
             </button>
           )}
           <button onClick={sendBulk} disabled={bulkLoading || statusFilter !== 'new'} className="btn-primary disabled:opacity-50">
@@ -520,9 +498,11 @@ export default function ProspectPage() {
                 <td className="px-4 py-3">
                   <div className="flex justify-end gap-1 flex-wrap">
                     {lead.status === 'new' && (<>
-                      <button onClick={() => previewEmail(lead)} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
-                        {busyId === lead.id+':preview' ? '...' : '✉ Editar e Enviar'}
-                      </button>
+                      {lead.email && (
+                        <button onClick={() => openImageEmailModal(lead)} disabled={busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
+                          ✉
+                        </button>
+                      )}
                       {(lead.whatsapp || lead.phone) ? (
                         <button onClick={() => sendWhatsAppManual(lead)} disabled={busyId !== null}
                           className="btn-primary text-xs py-1 px-2 bg-green-700 hover:bg-green-600 disabled:opacity-40">
@@ -530,13 +510,6 @@ export default function ProspectPage() {
                         </button>
                       ) : (
                         <span className="text-xs text-gray-400 py-1 px-2 border border-gray-200 rounded">Sem nº</span>
-                      )}
-                      {lead.email && (
-                        <button
-                          onClick={() => openImageEmailModal(lead)}
-                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                          title="Enviar email com imagem"
-                        >📎</button>
                       )}
                     </>)}
                     {lead.status === 'contacted' && (<>
@@ -556,13 +529,6 @@ export default function ProspectPage() {
                           className="btn-ghost text-xs py-1 px-2">
                           Ver msg
                         </button>
-                      )}
-                      {lead.email && (
-                        <button
-                          onClick={() => openImageEmailModal(lead)}
-                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                          title="Enviar email com imagem"
-                        >📎</button>
                       )}
                       <button
                         onClick={async () => {
@@ -585,15 +551,10 @@ export default function ProspectPage() {
                       </button>
                     </>)}
                     {lead.status === 'replied' && (<>
-                      <button onClick={() => sendOne(lead,'email')} disabled={!lead.email || busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
-                        {busyId === lead.id+':email' ? '...' : '✉ Email'}
-                      </button>
                       {lead.email && (
-                        <button
-                          onClick={() => openImageEmailModal(lead)}
-                          className="text-xs px-2 py-1 rounded bg-purple-100 text-purple-700 hover:bg-purple-200"
-                          title="Enviar email com imagem"
-                        >📎</button>
+                        <button onClick={() => openImageEmailModal(lead)} disabled={busyId !== null} className="btn-primary text-xs py-1 px-2 disabled:opacity-40">
+                          ✉
+                        </button>
                       )}
                     </>)}
                     {(lead.status==='replied'||lead.status==='contacted') && (
@@ -682,59 +643,13 @@ export default function ProspectPage() {
         </div>
       )}
 
-      {/* Modal preview */}
-      {preview && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setPreview(null)}>
-          <div className="bg-white rounded-xl shadow-2xl max-w-lg w-full p-6" onClick={e => e.stopPropagation()}>
-            <div className="flex justify-between items-center mb-4">
-              <h3 className="text-lg font-bold text-slate-900">Preview — {preview.lead.company_name}</h3>
-              <button onClick={() => setPreview(null)} className="text-slate-400 hover:text-slate-900 text-xl leading-none">✕</button>
-            </div>
-            <div className="mb-4">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Assunto</label>
-              <input
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 focus:outline-none focus:ring-2 focus:ring-kraft-500"
-                value={editedSubject}
-                onChange={e => setEditedSubject(e.target.value)}
-              />
-            </div>
-            <div className="mb-5">
-              <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Mensagem</label>
-              <textarea
-                rows={8}
-                className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm text-slate-900 leading-relaxed focus:outline-none focus:ring-2 focus:ring-kraft-500 resize-none"
-                value={editedBody}
-                onChange={e => setEditedBody(e.target.value)}
-              />
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  fetch('/api/outreach/send', {
-                    method: 'POST', headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                      lead_id: preview.lead.id, channel: 'email', dry_run: false,
-                      prewritten_subject: editedSubject, prewritten_body: editedBody
-                    })
-                  });
-                  setPreview(null);
-                  fetchLeads(statusFilter, campaignFilter);
-                }}
-                className="btn-primary flex-1"
-              >✉ Enviar agora</button>
-              <button onClick={() => setPreview(null)} className="btn-ghost flex-1">Cancelar</button>
-            </div>
-          </div>
-        </div>
-      )}
-
       {/* Modal email com imagem */}
       {imgEmailModal && (
         <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="font-semibold text-gray-800">Email com imagem</h3>
+                <h3 className="font-semibold text-gray-800">✉ Editar e Enviar — {imgEmailModal.company}</h3>
                 <p className="text-xs text-gray-400">{imgEmailModal.email}</p>
               </div>
               <button onClick={() => setImgEmailModal(null)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
@@ -788,19 +703,24 @@ export default function ProspectPage() {
                 disabled={imgSending || !imgEmailBody.trim() || !imgEmailSubject.trim()}
                 onClick={async () => {
                   setImgSending(true)
-                  await fetch('/api/leads/send-email', {
+                  await fetch('/api/outreach/send', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
                       lead_id: imgEmailModal.id,
-                      subject: imgEmailSubject.trim(),
-                      body: imgEmailBody.trim(),
+                      channel: 'email',
+                      dry_run: false,
+                      prewritten_subject: imgEmailSubject.trim(),
+                      prewritten_body: imgEmailBody.trim(),
                       image_url: imgEmailUrl || undefined
                     })
                   })
                   setImgSent(true)
                   setImgSending(false)
-                  setTimeout(() => setImgEmailModal(null), 1500)
+                  setTimeout(() => {
+                    setImgEmailModal(null)
+                    fetchLeads(statusFilter, campaignFilter)
+                  }, 1500)
                 }}
                 className={`text-sm px-5 py-2 rounded-lg font-medium ${
                   imgSent ? 'bg-green-500 text-white' : 'bg-purple-700 text-white hover:bg-purple-800 disabled:opacity-50'
