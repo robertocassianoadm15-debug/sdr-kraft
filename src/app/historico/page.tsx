@@ -58,7 +58,7 @@ function getIntentBadge(intent: string | null) {
   return <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${cls}`}>{intent}</span>
 }
 
-function LeadCard({ group }: { group: LeadGroup }) {
+function LeadCard({ group, onRefresh }: { group: LeadGroup; onRefresh: () => void }) {
   const [takeover, setTakeover] = useState(group.lead.human_takeover || false)
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
   const toggleExpand = (id: string) => {
@@ -75,6 +75,9 @@ function LeadCard({ group }: { group: LeadGroup }) {
   const [sent, setSent] = useState(false)
   const [imageUrl, setImageUrl] = useState('')
   const [uploadingImg, setUploadingImg] = useState(false)
+  const [manualModal, setManualModal] = useState(false)
+  const [manualText, setManualText] = useState('')
+  const [manualSaving, setManualSaving] = useState(false)
   const { lead, messages } = group
 
   const raw = (lead.whatsapp || lead.phone || '').replace(/\D/g, '')
@@ -142,6 +145,14 @@ function LeadCard({ group }: { group: LeadGroup }) {
               📧 Email
             </button>
           )}
+
+          {/* Botão 4 — Registrar resposta manual */}
+          <button
+            onClick={e => { e.stopPropagation(); setManualText(''); setManualModal(true) }}
+            className="text-xs px-3 py-1 rounded-full font-medium bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors"
+          >
+            ✍️ Registrar resposta
+          </button>
 
           {/* Data + contagem */}
           <span className="text-xs text-gray-400">{formatDate(group.last_activity)}</span>
@@ -280,6 +291,53 @@ function LeadCard({ group }: { group: LeadGroup }) {
         </div>
       </div>
     )}
+
+    {/* Modal registrar resposta manual */}
+    {manualModal && (
+      <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-xl shadow-xl w-full max-w-lg p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h3 className="font-semibold text-gray-800">✍️ Registrar resposta manual</h3>
+              <p className="text-xs text-gray-400 mt-0.5">{lead.company_name} — resposta recebida fora do sistema</p>
+            </div>
+            <button onClick={() => setManualModal(false)} className="text-gray-400 hover:text-gray-600 text-xl">×</button>
+          </div>
+          <textarea
+            value={manualText}
+            onChange={e => setManualText(e.target.value)}
+            placeholder="Cole aqui o conteúdo da resposta recebida no Gmail..."
+            rows={7}
+            className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-200"
+          />
+          <div className="flex justify-end gap-3 mt-4">
+            <button onClick={() => setManualModal(false)} className="text-sm text-gray-500 hover:text-gray-700 px-4 py-2">
+              Cancelar
+            </button>
+            <button
+              disabled={manualSaving || !manualText.trim()}
+              onClick={async () => {
+                setManualSaving(true)
+                try {
+                  await fetch('/api/historico', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ lead_id: lead.id, content: manualText.trim() })
+                  })
+                  setManualModal(false)
+                  onRefresh()
+                } finally {
+                  setManualSaving(false)
+                }
+              }}
+              className="text-sm px-5 py-2 rounded-lg font-medium bg-amber-600 hover:bg-amber-700 text-white disabled:opacity-50 transition-colors"
+            >
+              {manualSaving ? 'Salvando...' : 'Registrar'}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
     </>
   )
 }
@@ -289,12 +347,15 @@ export default function HistoricoPage() {
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
 
-  useEffect(() => {
+  function loadGroups() {
+    setLoading(true)
     fetch('/api/historico')
       .then(r => r.json())
       .then(d => { setGroups(d.conversations || []); setLoading(false) })
       .catch(() => setLoading(false))
-  }, [])
+  }
+
+  useEffect(() => { loadGroups() }, [])
 
   const filtered = groups.filter(g =>
     g.lead.company_name.toLowerCase().includes(search.toLowerCase()) ||
@@ -354,7 +415,7 @@ export default function HistoricoPage() {
 
       <div className="space-y-6">
         {filtered.map(group => (
-          <LeadCard key={group.lead.id} group={group} />
+          <LeadCard key={group.lead.id} group={group} onRefresh={loadGroups} />
         ))}
       </div>
     </main>

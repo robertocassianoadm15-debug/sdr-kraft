@@ -1,7 +1,39 @@
-import { NextResponse } from 'next/server'
+import { NextRequest, NextResponse } from 'next/server'
 import { supabase } from '@/lib/supabase'
 
 export const dynamic = 'force-dynamic'
+
+export async function POST(req: NextRequest) {
+  try {
+    const { lead_id, content } = await req.json()
+    if (!lead_id || !content?.trim()) {
+      return NextResponse.json({ error: 'lead_id e content obrigatórios' }, { status: 400 })
+    }
+    const { data, error } = await supabase
+      .from('conversations')
+      .insert({
+        lead_id,
+        channel: 'email',
+        direction: 'inbound',
+        content: content.trim(),
+        ai_generated: false,
+        auto_replied: false,
+        awaiting_human: false,
+        read_by_human: true,
+      })
+      .select()
+      .single()
+    if (error) throw error
+    await supabase
+      .from('leads')
+      .update({ status: 'replied' })
+      .eq('id', lead_id)
+      .eq('status', 'contacted')
+    return NextResponse.json({ ok: true, conversation: data })
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message }, { status: 500 })
+  }
+}
 
 export async function GET() {
   const { data: conversations, error } = await supabase
