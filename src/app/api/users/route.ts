@@ -1,18 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { cookies } from 'next/headers';
 import { supabase } from '@/lib/supabase';
 import { hashPassword } from '@/lib/auth';
+import { verifyToken } from '@/lib/jwt';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 export async function GET(req: NextRequest) {
-  const currentUserId = req.cookies.get('sdr_auth')?.value ?? '';
+  const raw = (await cookies()).get('sdr_auth')?.value
+  const userId = raw ? await verifyToken(raw) : null
+  if (!userId) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const { data, error } = await supabase
     .from('app_users')
     .select('id, name, email, created_at')
     .order('created_at', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ users: data ?? [], current_user_id: currentUserId });
+  return NextResponse.json({ users: data ?? [], current_user_id: userId });
 }
 
 export async function POST(req: NextRequest) {

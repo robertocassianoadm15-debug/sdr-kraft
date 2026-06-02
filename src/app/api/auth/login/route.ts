@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { verifyPassword, hashPassword } from '@/lib/auth';
+import { signToken } from '@/lib/jwt';
 
 export const runtime = 'nodejs';
 
@@ -32,13 +33,9 @@ export async function POST(req: NextRequest) {
       await supabase.from('app_users').update({ password_hash: hashed }).eq('id', user.id);
     }
 
+    const token = await signToken(user.id)
     const res = NextResponse.json({ ok: true, name: user.name });
-    res.cookies.set('sdr_auth', user.id, {
-      httpOnly: true,
-      maxAge: 28800,
-      path: '/',
-      sameSite: 'lax'
-    });
+    res.cookies.set('sdr_auth', token, { httpOnly: true, secure: true, sameSite: 'lax', path: '/', maxAge: 60 * 60 * 24 * 30 });
     return res;
   } catch (err: any) {
     return NextResponse.json({ error: err.message ?? 'erro interno' }, { status: 500 });

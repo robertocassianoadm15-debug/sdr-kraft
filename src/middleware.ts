@@ -14,11 +14,9 @@ export function middleware(req: NextRequest) {
     return NextResponse.next()
   }
 
-  const cookie = req.cookies.get('sdr_auth')
-  if (!cookie?.value || cookie.value.length < 10) {
-    const loginUrl = new URL('/login', req.url)
-    loginUrl.searchParams.set('from', pathname)
-    return NextResponse.redirect(loginUrl)
+  const auth = req.cookies.get('sdr_auth')
+  if (!auth || auth.value.split('.').length !== 3 || auth.value.length < 50) {
+    return NextResponse.redirect(new URL('/login', req.url))
   }
 
   return NextResponse.next()
