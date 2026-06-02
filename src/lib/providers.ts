@@ -40,19 +40,19 @@ export async function sendEmail(params: {
   body: string;
   replyTo?: string;
 }): Promise<{ id: string }> {
-  // Provider: Resend. API key e remetente lidos das envs (config.brevo.* reaproveitado).
-  const apiKey = process.env.RESEND_API_KEY || config.brevo.apiKey;
+  // Provider: Resend. API key e remetente lidos das envs (config.email.*).
+  const apiKey = process.env.RESEND_API_KEY || config.email.apiKey;
   if (!apiKey)                 throw new Error('RESEND_API_KEY não configurado');
-  if (!config.brevo.fromEmail) throw new Error('FROM_EMAIL não configurado');
+  if (!config.email.fromEmail) throw new Error('FROM_EMAIL não configurado');
 
   const html = params.body
     .split('\n')
     .map(line => `<p style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#222">${escapeHtml(line)}</p>`)
     .join('');
 
-  const fromEmail    = config.brevo.fromEmail.toLowerCase().trim();
-  const fromName     = config.brevo.fromName;
-  const replyToEmail = (params.replyTo ?? (config.brevo.replyTo || fromEmail)).toLowerCase().trim();
+  const fromEmail    = config.email.fromEmail.toLowerCase().trim();
+  const fromName     = config.email.fromName;
+  const replyToEmail = (params.replyTo ?? (config.email.replyTo || fromEmail)).toLowerCase().trim();
   const toEmail      = String(params.to).toLowerCase().trim();
 
   const bodyJson = JSON.stringify({

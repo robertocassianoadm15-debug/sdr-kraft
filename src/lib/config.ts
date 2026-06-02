@@ -3,7 +3,7 @@ export const config = {
     apiKey: process.env.GROQ_API_KEY ?? '',
     model: process.env.GROQ_MODEL ?? 'llama-3.3-70b-versatile'
   },
-  brevo: {
+  email: {
     apiKey: process.env.BREVO_API_KEY ?? '',
     fromEmail: process.env.FROM_EMAIL ?? '',
     fromName: process.env.FROM_NAME ?? 'Gráfica Liderset',

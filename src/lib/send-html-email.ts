@@ -9,22 +9,22 @@ export async function sendHtmlEmail(params: {
   htmlContent: string
   replyTo?: string
 }): Promise<{ id: string }> {
-  if (!config.brevo.apiKey)   throw new Error('BREVO_API_KEY não configurado')
-  if (!config.brevo.fromEmail) throw new Error('FROM_EMAIL não configurado')
+  if (!config.email.apiKey)   throw new Error('BREVO_API_KEY não configurado')
+  if (!config.email.fromEmail) throw new Error('FROM_EMAIL não configurado')
 
-  const fromEmail    = config.brevo.fromEmail.toLowerCase().trim()
-  const replyToEmail = (params.replyTo ?? config.brevo.replyTo ?? fromEmail).toLowerCase().trim()
+  const fromEmail    = config.email.fromEmail.toLowerCase().trim()
+  const replyToEmail = (params.replyTo ?? config.email.replyTo ?? fromEmail).toLowerCase().trim()
   const toEmail      = String(params.to).toLowerCase().trim()
 
   const res = await fetch('https://api.brevo.com/v3/smtp/email', {
     method: 'POST',
     headers: {
-      'api-key':      config.brevo.apiKey,
+      'api-key':      config.email.apiKey,
       'Content-Type': 'application/json',
       Accept:         'application/json'
     },
     body: JSON.stringify({
-      sender:      { name: config.brevo.fromName, email: fromEmail },
+      sender:      { name: config.email.fromName, email: fromEmail },
       to:          [{ email: toEmail }],
       replyTo:     { email: replyToEmail },
       subject:     params.subject,

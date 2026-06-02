@@ -6,10 +6,10 @@ export const dynamic = 'force-dynamic';
 
 export async function GET() {
   return NextResponse.json({
-    brevo_configured:   !!config.brevo.apiKey,
-    from_email:         config.brevo.fromEmail,
-    from_name:          config.brevo.fromName,
-    reply_to_email:     config.brevo.replyTo,
+    email_configured:   !!config.email.apiKey,
+    from_email:         config.email.fromEmail,
+    from_name:          config.email.fromName,
+    reply_to_email:     config.email.replyTo,
     groq_configured:    !!config.groq.apiKey,
     groq_model:         config.groq.model,
     supabase_configured: !!config.supabase.url && !!config.supabase.serviceKey,
