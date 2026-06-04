@@ -79,13 +79,15 @@ export async function GET(req: Request) {
         providerId = r.id;
       }
 
+      const sentAt = new Date().toISOString()
+
       await supabase.from('outreach').update({
         status:      'sent',
         provider:    'brevo',
         provider_id: providerId,
         subject:     subject,
         message:     body,
-        sent_at:     new Date().toISOString()
+        sent_at:     sentAt
       }).eq('id', item.id);
 
       if (lead.status === 'new') {
@@ -99,6 +101,36 @@ export async function GET(req: Request) {
       });
 
       sent++;
+
+      // Agenda próximo toque (D10 após D0, D20 após D10)
+      const nextTouch = touchNumber < 3 ? (touchNumber + 1) as 2 | 3 : null
+      if (nextTouch) {
+        try {
+          const { data: existing } = await supabase
+            .from('outreach')
+            .select('id')
+            .eq('lead_id', item.lead_id)
+            .eq('touch_number', nextTouch)
+            .maybeSingle()
+
+          if (!existing) {
+            const scheduledAt = new Date(new Date(sentAt).getTime() + 10 * 864e5).toISOString()
+            await supabase.from('outreach').insert({
+              lead_id:      item.lead_id,
+              channel:      item.channel,
+              touch_number: nextTouch,
+              status:       'scheduled',
+              scheduled_at: scheduledAt
+            })
+          }
+        } catch (schedErr: any) {
+          await logEvent({
+            entity_type: 'outreach', entity_id: item.id,
+            action:      'schedule_next_failed',
+            metadata:    { next_touch: nextTouch, error: schedErr.message }
+          })
+        }
+      }
     } catch (err: any) {
       await supabase.from('outreach').update({
         status: 'failed',
