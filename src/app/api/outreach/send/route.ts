@@ -175,7 +175,8 @@ export async function POST(req: NextRequest) {
         const r = await sendEmail({
           to: lead.email!,
           subject: aiResult.subject ?? 'Olá',
-          body: aiResult.body
+          body: aiResult.body,
+          replyTo: `inbound+${lead.id}@liderset.com`,
         });
         providerId = r.id;
         providerName = 'brevo';
