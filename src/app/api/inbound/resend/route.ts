@@ -82,6 +82,15 @@ async function processInboundEmail(payload: any) {
   }).select().single();
   if (!conv) return;
 
+  try {
+    await supabase.from('leads')
+      .update({ status: 'replied' })
+      .eq('id', leadId)
+      .in('status', ['new', 'contacted']);
+  } catch (e) {
+    console.error('[inbound] falha ao marcar lead replied:', leadId, e);
+  }
+
   // Verifica se humano assumiu controle — bypassa IA
   if (lead.human_takeover) {
     await supabase.from('conversations').update({ awaiting_human: true, auto_replied: false }).eq('id', conv.id);
