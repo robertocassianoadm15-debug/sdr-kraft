@@ -33,6 +33,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <nav className="flex items-center gap-1">
               <NavLink href="/import" label="Importação" />
               <NavLink href="/prospect" label="Prospecção" />
+              <NavLink href="/blast" label="Disparo em Lote" />
               <NavLink href="/dashboard" label="Dashboard" />
               <NavLink href="/settings" label="⚙ Config" />
               <NavLink href="/users" label="Usuários" />
