@@ -1,21 +1,27 @@
 'use client';
 // ============================================================
-// src/app/blast/page.tsx
-// Tela de Disparo em Lote Manual.
-// Fluxo: campanha → canal → texto → imagens → quantidade →
-//        PREVIEW → confirmar → disparar.
-// Light mode, semântico, acessível.
+// src/app/blast/page.tsx — v2
+// Disparo em Lote + Modelos reutilizáveis.
 // ============================================================
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 
-interface Campaign { id: string; name: string; total_leads: number | null; }
+interface Campaign {
+  id: string; name: string; total_leads: number | null;
+  leads_email?: number; leads_whatsapp?: number;
+}
+interface Template {
+  id: string; name: string; channel: Channel;
+  subject: string | null; body: string; image_urls: string[];
+}
 type Channel = 'email' | 'whatsapp';
 type Step = 'montar' | 'preview' | 'resultado';
-
 interface WaLink { to: string; link: string; }
 
 export default function BlastPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState('');
+
   const [campaignId, setCampaignId] = useState('');
   const [channel, setChannel] = useState<Channel>('email');
   const [subject, setSubject] = useState('');
@@ -30,14 +36,19 @@ export default function BlastPage() {
   const [loading, setLoading] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState('');
+  const [info, setInfo] = useState('');
   const [result, setResult] = useState<{ sent: number; failed: number; wa_links?: WaLink[]; note: string } | null>(null);
 
-  useEffect(() => {
-    fetch('/api/campaigns')
-      .then(r => r.json())
-      .then(d => setCampaigns(Array.isArray(d) ? d : (d.campaigns ?? [])))
-      .catch(() => {});
+  const loadCampaigns = useCallback(() => {
+    fetch('/api/campaigns').then(r => r.json())
+      .then(d => setCampaigns(d.campaigns ?? (Array.isArray(d) ? d : []))).catch(() => {});
   }, []);
+  const loadTemplates = useCallback(() => {
+    fetch('/api/blast/templates').then(r => r.json())
+      .then(d => setTemplates(d.templates ?? [])).catch(() => {});
+  }, []);
+
+  useEffect(() => { loadCampaigns(); loadTemplates(); }, [loadCampaigns, loadTemplates]);
 
   async function handleUpload(file: File) {
     if (imageUrls.length >= 3) { setError('Máximo 3 imagens'); return; }
@@ -52,25 +63,73 @@ export default function BlastPage() {
     } catch { setError('Erro ao enviar imagem'); }
     finally { setUploading(false); }
   }
+  function removeImage(url: string) { setImageUrls(prev => prev.filter(u => u !== url)); }
 
-  function removeImage(url: string) {
-    setImageUrls(prev => prev.filter(u => u !== url));
+  function carregarModelo(id: string) {
+    setTemplateId(id);
+    const t = templates.find(x => x.id === id);
+    if (!t) return;
+    setChannel(t.channel);
+    setSubject(t.subject ?? '');
+    setBody(t.body);
+    setImageUrls(Array.isArray(t.image_urls) ? t.image_urls : []);
+    setInfo(`Modelo "${t.name}" carregado.`);
+    setError('');
+  }
+
+  async function salvarModelo() {
+    setError(''); setInfo('');
+    if (!body.trim()) { setError('Escreva o texto antes de salvar o modelo'); return; }
+    if (channel === 'email' && !subject.trim()) { setError('Escreva o assunto antes de salvar'); return; }
+    const nome = window.prompt('Nome do modelo:', templates.find(t => t.id === templateId)?.name ?? '');
+    if (!nome?.trim()) return;
+    setLoading(true);
+    try {
+      const existing = templates.find(t => t.id === templateId && t.name === nome.trim());
+      const method = existing ? 'PUT' : 'POST';
+      const payload: any = { name: nome.trim(), channel, subject, body, image_urls: imageUrls };
+      if (existing) payload.id = existing.id;
+      const res = await fetch('/api/blast/templates', {
+        method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Erro ao salvar modelo'); return; }
+      setInfo(existing ? 'Modelo atualizado.' : 'Modelo salvo.');
+      loadTemplates();
+      if (data.template?.id) setTemplateId(data.template.id);
+    } catch { setError('Erro de rede'); }
+    finally { setLoading(false); }
+  }
+
+  async function excluirModelo() {
+    if (!templateId) { setError('Escolha um modelo para excluir'); return; }
+    const t = templates.find(x => x.id === templateId);
+    if (!t) return;
+    if (!window.confirm(`Excluir o modelo "${t.name}"? Esta ação não pode ser desfeita.`)) return;
+    setLoading(true); setError(''); setInfo('');
+    try {
+      const res = await fetch('/api/blast/templates', {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id: templateId })
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.error ?? 'Erro ao excluir'); return; }
+      setInfo('Modelo excluído.');
+      setTemplateId('');
+      loadTemplates();
+    } catch { setError('Erro de rede'); }
+    finally { setLoading(false); }
   }
 
   async function montarPreview() {
-    setError('');
+    setError(''); setInfo('');
     if (!campaignId) { setError('Escolha uma campanha'); return; }
     if (!body.trim()) { setError('Escreva o texto da mensagem'); return; }
     if (channel === 'email' && !subject.trim()) { setError('Escreva o assunto do email'); return; }
     setLoading(true);
     try {
       const res = await fetch('/api/blast/create', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          campaign_id: campaignId, channel, subject, body,
-          image_urls: imageUrls, limit: limit === '' ? undefined : limit
-        })
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ campaign_id: campaignId, channel, subject, body, image_urls: imageUrls, limit: limit === '' ? undefined : limit })
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? 'Erro ao montar'); return; }
@@ -86,9 +145,7 @@ export default function BlastPage() {
     setLoading(true); setError('');
     try {
       const res = await fetch('/api/blast/send', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ batch_id: batchId })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ batch_id: batchId })
       });
       const data = await res.json();
       if (!res.ok) { setError(data.error ?? 'Erro ao disparar'); return; }
@@ -99,9 +156,12 @@ export default function BlastPage() {
   }
 
   function resetar() {
-    setStep('montar'); setBatchId(''); setResult(null); setBody('');
-    setSubject(''); setImageUrls([]); setSampleRecipients([]);
+    setStep('montar'); setBatchId(''); setResult(null);
+    setSampleRecipients([]); setInfo('');
   }
+
+  const campSel = campaigns.find(c => c.id === campaignId);
+  const disponiveis = campSel ? (channel === 'email' ? campSel.leads_email : campSel.leads_whatsapp) : undefined;
 
   return (
     <main style={{ maxWidth: 760, margin: '0 auto', padding: '24px 16px', fontFamily: 'Arial, sans-serif', color: '#222' }}>
@@ -110,22 +170,42 @@ export default function BlastPage() {
         <p style={{ color: '#666', marginTop: 4 }}>Mesma mensagem e imagens para vários leads de uma campanha.</p>
       </header>
 
-      {error && (
-        <div role="alert" style={{ background: '#fde8e8', border: '1px solid #f5b5b5', color: '#a12', padding: 12, borderRadius: 8, marginBottom: 16 }}>
-          {error}
-        </div>
-      )}
+      {error && <div role="alert" style={alertErr}>{error}</div>}
+      {info && <div role="status" style={alertOk}>{info}</div>}
 
       {step === 'montar' && (
         <section style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+
+          <fieldset style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
+            <legend style={{ fontWeight: 700, padding: '0 6px' }}>Meus modelos</legend>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+              <select value={templateId} onChange={e => carregarModelo(e.target.value)} style={{ ...inputStyle, flex: 1, minWidth: 200 }}>
+                <option value="">— novo (em branco) —</option>
+                {templates.map(t => <option key={t.id} value={t.id}>{t.name} ({t.channel})</option>)}
+              </select>
+              <button type="button" onClick={salvarModelo} disabled={loading} style={smallBtn}>💾 Salvar modelo</button>
+              <button type="button" onClick={excluirModelo} disabled={loading || !templateId} style={smallBtnDanger}>Excluir</button>
+            </div>
+            <p style={{ fontSize: 13, color: '#777', marginTop: 8 }}>
+              Carregue um modelo para reusar, edite e salve por cima, ou comece em branco.
+            </p>
+          </fieldset>
+
+          <label style={labelCol}>
             <span style={{ fontWeight: 700 }}>Campanha</span>
             <select value={campaignId} onChange={e => setCampaignId(e.target.value)} style={inputStyle}>
               <option value="">— escolha —</option>
               {campaigns.map(c => (
-                <option key={c.id} value={c.id}>{c.name} {c.total_leads ? `(${c.total_leads})` : ''}</option>
+                <option key={c.id} value={c.id}>
+                  {c.name} — {c.leads_email ?? 0} c/ email · {c.leads_whatsapp ?? 0} c/ whatsapp
+                </option>
               ))}
             </select>
+            {campSel && disponiveis !== undefined && (
+              <span style={{ fontSize: 13, color: disponiveis ? '#1a7a1a' : '#a12' }}>
+                {disponiveis} leads com {channel === 'email' ? 'email' : 'whatsapp'} nesta campanha.
+              </span>
+            )}
           </label>
 
           <fieldset style={{ border: '1px solid #ddd', borderRadius: 8, padding: 12 }}>
@@ -144,13 +224,13 @@ export default function BlastPage() {
           </fieldset>
 
           {channel === 'email' && (
-            <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+            <label style={labelCol}>
               <span style={{ fontWeight: 700 }}>Assunto do email</span>
               <input value={subject} onChange={e => setSubject(e.target.value)} style={inputStyle} />
             </label>
           )}
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelCol}>
             <span style={{ fontWeight: 700 }}>Mensagem (igual para todos)</span>
             <textarea value={body} onChange={e => setBody(e.target.value)} rows={6} style={{ ...inputStyle, resize: 'vertical' }} />
           </label>
@@ -175,7 +255,7 @@ export default function BlastPage() {
             </div>
           </div>
 
-          <label style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <label style={labelCol}>
             <span style={{ fontWeight: 700 }}>Quantidade de leads</span>
             <input type="number" min={1} value={limit}
               onChange={e => setLimit(e.target.value === '' ? '' : Number(e.target.value))}
@@ -210,7 +290,6 @@ export default function BlastPage() {
               </div>
             )}
           </div>
-
           <div style={{ display: 'flex', gap: 12 }}>
             <button onClick={() => setStep('montar')} style={secondaryBtn}>← Voltar e editar</button>
             <button onClick={dispararAgora} disabled={loading} style={primaryBtn}>
@@ -227,22 +306,18 @@ export default function BlastPage() {
             <p style={{ margin: 0, fontWeight: 700, color: '#1a7a1a' }}>✓ {result.sent} processados{result.failed ? ` · ${result.failed} falharam` : ''}</p>
             <p style={{ margin: '8px 0 0', fontSize: 14, color: '#555' }}>{result.note}</p>
           </div>
-
           {result.wa_links && result.wa_links.length > 0 && (
             <div>
               <h3 style={{ fontSize: 15 }}>Links do WhatsApp — clique para enviar</h3>
               <ul style={{ paddingLeft: 18 }}>
                 {result.wa_links.map((w, i) => (
                   <li key={i} style={{ marginBottom: 6 }}>
-                    <a href={w.link} target="_blank" rel="noopener noreferrer" style={{ color: '#0a7' }}>
-                      {w.to} — abrir WhatsApp
-                    </a>
+                    <a href={w.link} target="_blank" rel="noopener noreferrer" style={{ color: '#0a7' }}>{w.to} — abrir WhatsApp</a>
                   </li>
                 ))}
               </ul>
             </div>
           )}
-
           <button onClick={resetar} style={primaryBtn}>Novo disparo</button>
         </section>
       )}
@@ -250,12 +325,11 @@ export default function BlastPage() {
   );
 }
 
-const inputStyle: React.CSSProperties = {
-  padding: '10px 12px', border: '1px solid #ccc', borderRadius: 8, fontSize: 15, fontFamily: 'inherit'
-};
-const primaryBtn: React.CSSProperties = {
-  background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 15, fontWeight: 700, cursor: 'pointer'
-};
-const secondaryBtn: React.CSSProperties = {
-  background: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: 8, padding: '12px 20px', fontSize: 15, cursor: 'pointer'
-};
+const inputStyle: React.CSSProperties = { padding: '10px 12px', border: '1px solid #ccc', borderRadius: 8, fontSize: 15, fontFamily: 'inherit' };
+const labelCol: React.CSSProperties = { display: 'flex', flexDirection: 'column', gap: 6 };
+const primaryBtn: React.CSSProperties = { background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 8, padding: '12px 20px', fontSize: 15, fontWeight: 700, cursor: 'pointer' };
+const secondaryBtn: React.CSSProperties = { background: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: 8, padding: '12px 20px', fontSize: 15, cursor: 'pointer' };
+const smallBtn: React.CSSProperties = { background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' };
+const smallBtnDanger: React.CSSProperties = { background: '#fff', color: '#a12', border: '1px solid #f0b0b0', borderRadius: 6, padding: '8px 12px', fontSize: 13, cursor: 'pointer' };
+const alertErr: React.CSSProperties = { background: '#fde8e8', border: '1px solid #f5b5b5', color: '#a12', padding: 12, borderRadius: 8, marginBottom: 16 };
+const alertOk: React.CSSProperties = { background: '#eafbe8', border: '1px solid #b5e5b0', color: '#1a7a1a', padding: 12, borderRadius: 8, marginBottom: 16 };

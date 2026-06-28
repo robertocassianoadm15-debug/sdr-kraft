@@ -6,15 +6,28 @@ import { z } from 'zod';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-// GET — lista todas as campanhas
+// GET — lista todas as campanhas COM contagem por canal
 export async function GET() {
-  const { data, error } = await supabase
+  const { data: campaigns, error } = await supabase
     .from('campaigns')
     .select('*')
     .order('created_at', { ascending: false });
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ campaigns: data ?? [] });
+
+  const enriched = await Promise.all(
+    (campaigns ?? []).map(async (c) => {
+      const [{ count: withEmail }, { count: withWhatsapp }] = await Promise.all([
+        supabase.from('leads').select('id', { count: 'exact', head: true })
+          .eq('campaign_id', c.id).not('email', 'is', null).neq('email', ''),
+        supabase.from('leads').select('id', { count: 'exact', head: true })
+          .eq('campaign_id', c.id).not('whatsapp', 'is', null).neq('whatsapp', '')
+      ]);
+      return { ...c, leads_email: withEmail ?? 0, leads_whatsapp: withWhatsapp ?? 0 };
+    })
+  );
+
+  return NextResponse.json({ campaigns: enriched });
 }
 
 // POST — cria campanha
