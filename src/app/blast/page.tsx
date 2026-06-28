@@ -157,7 +157,7 @@ export default function BlastPage() {
 
   async function baixarImagem(url: string, idx: number) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(`/api/blast/image-proxy?url=${encodeURIComponent(url)}`);
       const blob = await res.blob();
       const a = document.createElement('a');
       a.href = URL.createObjectURL(blob);
@@ -173,13 +173,14 @@ export default function BlastPage() {
 
   async function copiarImagem(url: string) {
     try {
-      const res = await fetch(url);
+      const res = await fetch(`/api/blast/image-proxy?url=${encodeURIComponent(url)}`);
       const blob = await res.blob();
       // @ts-ignore — ClipboardItem existe nos navegadores modernos
       await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
-      setInfo('Imagem copiada — cole no WhatsApp Web (Ctrl+V).');
+      setInfo('Imagem copiada — abra a conversa e cole com Ctrl+V no WhatsApp Web.');
+      setError('');
     } catch {
-      setError('Seu navegador não permite copiar imagem aqui. Use o botão Baixar.');
+      setError('Seu navegador não permitiu copiar a imagem. Use o botão Baixar e anexe pelo 📎 no WhatsApp.');
     }
   }
 
