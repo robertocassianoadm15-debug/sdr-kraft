@@ -149,3 +149,35 @@ export async function sendWhatsApp(params: {
   const json = await res.json();
   return { id: json.key?.id ?? 'unknown' };
 }
+
+/**
+ * Modo B do WhatsApp: gera link wa.me com texto pré-preenchido.
+ * Não envia — devolve o link para o operador clicar e enviar manualmente.
+ * (Imagens não viajam pelo wa.me; o operador anexa na hora pelo zap.)
+ */
+export function buildWaMeLink(params: { to: string; body: string }): string {
+  const phone = params.to.replace(/\D/g, '');
+  const text  = encodeURIComponent(params.body);
+  return `https://wa.me/${phone}?text=${text}`;
+}
+
+/**
+ * Monta o HTML do email com imagens inline (no corpo) + texto.
+ * Reaproveita o padrão visual do sendEmail (parágrafos Arial).
+ */
+export function buildEmailHtmlWithImages(body: string, imageUrls: string[]): string {
+  const esc = (s: string) =>
+    s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+
+  const textHtml = body
+    .split('\n')
+    .map(line => `<p style="margin:0 0 12px 0;font-family:Arial,sans-serif;font-size:15px;line-height:1.55;color:#222">${esc(line)}</p>`)
+    .join('');
+
+  const imagesHtml = (imageUrls || [])
+    .slice(0, 3)
+    .map(url => `<img src="${url}" alt="" style="max-width:100%;height:auto;border-radius:8px;margin:8px 0;display:block" />`)
+    .join('');
+
+  return `<div style="max-width:600px;margin:0 auto">${textHtml}${imagesHtml}</div>`;
+}
