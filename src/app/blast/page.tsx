@@ -155,6 +155,34 @@ export default function BlastPage() {
     finally { setLoading(false); }
   }
 
+  async function baixarImagem(url: string, idx: number) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = `imagem-${idx + 1}.${(blob.type.split('/')[1] || 'jpg')}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(a.href);
+    } catch {
+      window.open(url, '_blank');
+    }
+  }
+
+  async function copiarImagem(url: string) {
+    try {
+      const res = await fetch(url);
+      const blob = await res.blob();
+      // @ts-ignore — ClipboardItem existe nos navegadores modernos
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      setInfo('Imagem copiada — cole no WhatsApp Web (Ctrl+V).');
+    } catch {
+      setError('Seu navegador não permite copiar imagem aqui. Use o botão Baixar.');
+    }
+  }
+
   function resetar() {
     setStep('montar'); setBatchId(''); setResult(null);
     setSampleRecipients([]); setInfo('');
@@ -308,7 +336,28 @@ export default function BlastPage() {
           </div>
           {result.wa_links && result.wa_links.length > 0 && (
             <div>
-              <h3 style={{ fontSize: 15 }}>Links do WhatsApp — clique para enviar</h3>
+              {imageUrls.length > 0 && (
+                <div style={{ background: '#fff7e6', border: '1px solid #ffe0a3', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+                  <p style={{ margin: '0 0 8px', fontSize: 14, fontWeight: 700 }}>
+                    Imagens deste disparo — baixe ou copie para anexar no WhatsApp:
+                  </p>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {imageUrls.map((url, idx) => (
+                      <div key={url} style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                        <img src={url} alt={`Imagem ${idx + 1}`} style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 6, border: '1px solid #eee' }} />
+                        <button type="button" onClick={() => baixarImagem(url, idx)} style={smallBtn}>⬇ Baixar</button>
+                        <button type="button" onClick={() => copiarImagem(url)} style={smallBtnLight}>📋 Copiar</button>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ margin: '10px 0 0', fontSize: 13, color: '#777' }}>
+                    No celular: baixe a imagem (vai para a galeria) e anexe ao abrir cada conversa.<br />
+                    No computador: copie e cole (Ctrl+V) no WhatsApp Web depois de abrir o chat.
+                  </p>
+                </div>
+              )}
+
+              <h3 style={{ fontSize: 15 }}>Links do WhatsApp — clique para abrir cada conversa</h3>
               <ul style={{ paddingLeft: 18 }}>
                 {result.wa_links.map((w, i) => (
                   <li key={i} style={{ marginBottom: 6 }}>
@@ -331,5 +380,6 @@ const primaryBtn: React.CSSProperties = { background: '#1a1a1a', color: '#fff', 
 const secondaryBtn: React.CSSProperties = { background: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: 8, padding: '12px 20px', fontSize: 15, cursor: 'pointer' };
 const smallBtn: React.CSSProperties = { background: '#1a1a1a', color: '#fff', border: 'none', borderRadius: 6, padding: '8px 12px', fontSize: 13, fontWeight: 700, cursor: 'pointer' };
 const smallBtnDanger: React.CSSProperties = { background: '#fff', color: '#a12', border: '1px solid #f0b0b0', borderRadius: 6, padding: '8px 12px', fontSize: 13, cursor: 'pointer' };
+const smallBtnLight: React.CSSProperties = { background: '#fff', color: '#333', border: '1px solid #ccc', borderRadius: 6, padding: '8px 12px', fontSize: 13, cursor: 'pointer' };
 const alertErr: React.CSSProperties = { background: '#fde8e8', border: '1px solid #f5b5b5', color: '#a12', padding: 12, borderRadius: 8, marginBottom: 16 };
 const alertOk: React.CSSProperties = { background: '#eafbe8', border: '1px solid #b5e5b0', color: '#1a7a1a', padding: 12, borderRadius: 8, marginBottom: 16 };
