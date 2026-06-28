@@ -1,1 +1,1 @@
-{"crons":[{"path":"/api/cron/process-cadence","schedule":"0 9 * * *"},{"path":"/api/cron/daily-summary","schedule":"0 11 * * *"},{"path":"/api/cron/health-check","schedule":"0 */6 * * *"}]}
+{"crons":[]}
