@@ -40,6 +40,16 @@ export async function POST(req: NextRequest) {
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
                                          return NextResponse.json({ error: 'limit inválido' }, { status: 400 });
 
+  // 1) Busca os lead_ids que JÁ receberam disparo em lote (blast_targets sent).
+  //    NÃO considera a cadência (outreach) — só a aba Disparo em Lote.
+  const { data: jaEnviados, error: enviadosErr } = await supabase
+    .from('blast_targets')
+    .select('lead_id')
+    .eq('status', 'sent');
+  if (enviadosErr) return NextResponse.json({ error: enviadosErr.message }, { status: 500 });
+  const idsJaEnviados = (jaEnviados ?? []).map(r => r.lead_id).filter(Boolean);
+
+  // 2) Busca leads da campanha com o canal preenchido, excluindo os já enviados.
   const channelCol = channel === 'email' ? 'email' : 'whatsapp';
   let query = supabase
     .from('leads')
@@ -49,12 +59,15 @@ export async function POST(req: NextRequest) {
     .neq(channelCol, '')
     .order('created_at', { ascending: true });
 
+  if (idsJaEnviados.length > 0) {
+    query = (query as any).not('id', 'in', `(${idsJaEnviados.join(',')})`);
+  }
   if (limit) query = query.limit(limit);
 
   const { data: leads, error: leadsErr } = await query;
   if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
   if (!leads || leads.length === 0)
-    return NextResponse.json({ error: 'Nenhum lead com este canal nesta campanha' }, { status: 404 });
+    return NextResponse.json({ error: 'Todos os leads com este canal nesta campanha já receberam disparo em lote' }, { status: 404 });
 
   const { data: batch, error: batchErr } = await supabase
     .from('blast_batches')
