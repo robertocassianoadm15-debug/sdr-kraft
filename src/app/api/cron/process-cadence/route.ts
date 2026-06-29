@@ -16,21 +16,44 @@ export async function GET(req: Request) {
   }
 
   console.log('[process-cadence] iniciando', new Date().toISOString());
+
+  // 1) Lê a config geral da cadência
+  const { data: cfg } = await supabase
+    .from('cadence_config')
+    .select('ativo, limite_por_execucao')
+    .eq('id', 1)
+    .single();
+
+  if (!cfg?.ativo) {
+    console.log('[process-cadence] cadência DESATIVADA — nada a fazer');
+    return NextResponse.json({ skipped: true, reason: 'cadencia desativada' });
+  }
+  const limite = cfg.limite_por_execucao ?? 50;
+
+  // 2) Carrega os toques configurados (mapa por step_number)
+  const { data: stepsRows } = await supabase
+    .from('cadence_steps')
+    .select('*')
+    .order('step_number', { ascending: true });
+  const steps = stepsRows ?? [];
+  const stepByNumber = new Map(steps.map(s => [s.step_number, s]));
+  const maxStep = steps.length > 0 ? Math.max(...steps.map(s => s.step_number)) : 1;
+
   const now = new Date().toISOString();
 
+  // 3) Busca a fila — respeitando o LIMITE por execução (anti rate-limit)
   const { data: queue, error } = await supabase
     .from('outreach')
     .select('*')
     .or(`status.eq.pending,and(status.eq.scheduled,scheduled_at.lte.${now})`)
     .order('scheduled_at', { ascending: true })
-    .limit(50);
+    .limit(limite);
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   let sent = 0, cancelled = 0, failed = 0;
 
   for (const item of queue ?? []) {
-    // Busca lead e decide se processa
     const { data: lead } = await supabase
       .from('leads').select('*').eq('id', item.lead_id).single();
 
@@ -41,33 +64,35 @@ export async function GET(req: Request) {
     }
 
     try {
-      const touchNumber = (item.touch_number ?? 1) as 1 | 2 | 3;
+      const touchNumber = (item.touch_number ?? 1) as number;
+      const step = stepByNumber.get(touchNumber);
 
+      if (!step || !step.ativo) {
+        await supabase.from('outreach').update({ status: 'cancelled' }).eq('id', item.id);
+        cancelled++;
+        continue;
+      }
+
+      const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`;
       let subject: string;
       let body: string;
 
-      if (touchNumber === 1) {
-        // D0: template fixo da Polyana via settings
-        const { data: subjectRow } = await supabase.from('settings').select('value').eq('key', 'email_template_d0_subject').single();
-        const { data: bodyRow }    = await supabase.from('settings').select('value').eq('key', 'email_template_d0_body').single();
-        const contactName = lead.contact_name?.trim() || `equipe da ${lead.company_name}`;
-        subject = (subjectRow?.value || 'Dúvida sobre {{company_name}}')
+      if (step.modo_texto === 'template') {
+        subject = (step.subject || 'Contato — Gráfica Liderset')
           .replace(/{{company_name}}/g, lead.company_name)
           .replace(/{{contact_name}}/g, contactName);
-        body = (bodyRow?.value || '')
+        body = (step.body || '')
           .replace(/{{company_name}}/g, lead.company_name)
           .replace(/{{contact_name}}/g, contactName);
       } else {
-        // D3 e D7: geração via IA
         const aiResult = await llmJSON<{ subject?: string; body: string }>([
           { role: 'system', content: sdrSystemPrompt() },
-          { role: 'user',   content: sdrTouchPrompt(lead, item.channel, touchNumber) }
+          { role: 'user',   content: sdrTouchPrompt(lead, item.channel, touchNumber as 1 | 2 | 3) }
         ], { temperature: 0.8, max_tokens: 500 });
         subject = aiResult.subject ?? `Toque ${touchNumber} — Gráfica Liderset`;
         body    = aiResult.body;
       }
 
-      // Envia — só email por enquanto na cadência automática
       let providerId = '';
       if (item.channel === 'email' && lead.email) {
         const r = await sendEmail({
@@ -83,7 +108,7 @@ export async function GET(req: Request) {
 
       await supabase.from('outreach').update({
         status:      'sent',
-        provider:    'brevo',
+        provider:    'resend',
         provider_id: providerId,
         subject:     subject,
         message:     body,
@@ -102,23 +127,24 @@ export async function GET(req: Request) {
 
       sent++;
 
-      // Agenda próximo toque (D10 após D0, D20 após D10)
-      const nextTouch = touchNumber < 3 ? (touchNumber + 1) as 2 | 3 : null
-      if (nextTouch) {
+      const nextNumber = touchNumber + 1;
+      const nextStep = stepByNumber.get(nextNumber);
+      if (nextStep && nextStep.ativo && nextNumber <= maxStep) {
         try {
           const { data: existing } = await supabase
             .from('outreach')
             .select('id')
             .eq('lead_id', item.lead_id)
-            .eq('touch_number', nextTouch)
+            .eq('touch_number', nextNumber)
             .maybeSingle()
 
           if (!existing) {
-            const scheduledAt = new Date(new Date(sentAt).getTime() + 10 * 864e5).toISOString()
+            const dias = nextStep.dias_apos ?? 10;
+            const scheduledAt = new Date(new Date(sentAt).getTime() + dias * 864e5).toISOString()
             await supabase.from('outreach').insert({
               lead_id:      item.lead_id,
               channel:      item.channel,
-              touch_number: nextTouch,
+              touch_number: nextNumber,
               status:       'scheduled',
               scheduled_at: scheduledAt
             })
@@ -127,7 +153,7 @@ export async function GET(req: Request) {
           await logEvent({
             entity_type: 'outreach', entity_id: item.id,
             action:      'schedule_next_failed',
-            metadata:    { next_touch: nextTouch, error: schedErr.message }
+            metadata:    { next_touch: nextNumber, error: schedErr.message }
           })
         }
       }
@@ -148,5 +174,5 @@ export async function GET(req: Request) {
   }
 
   const processed = (queue ?? []).length;
-  return NextResponse.json({ processed, sent, cancelled, failed });
+  return NextResponse.json({ processed, sent, cancelled, failed, limite });
 }
