@@ -26,13 +26,20 @@ export async function GET() {
     const todayStartBR = new Date();
     todayStartBR.setUTCHours(3, 0, 0, 0); // 00:00 Brasília = 03:00 UTC
     if (todayStartBR > new Date()) todayStartBR.setUTCDate(todayStartBR.getUTCDate() - 1);
+    const todayISO = todayStartBR.toISOString();
 
-    const { count: sentToday } = await supabase
-      .from('event_log')
-      .select('*', { count: 'exact', head: true })
-      .eq('action', 'email_send_attempt')
-      .gte('created_at', todayStartBR.toISOString())
-      .filter('metadata->>success', 'eq', 'true');
+    // Enviados hoje = cadência (outreach) + disparo em lote (blast_targets)
+    const [{ count: cadenceToday }, { count: blastToday }] = await Promise.all([
+      supabase.from('outreach')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'sent')
+        .gte('sent_at', todayISO),
+      supabase.from('blast_targets')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'sent')
+        .gte('sent_at', todayISO)
+    ]);
+    const sentToday = (cadenceToday ?? 0) + (blastToday ?? 0);
 
     return NextResponse.json({
       metrics,
