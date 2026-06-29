@@ -23,6 +23,7 @@ const ITEMS: NavItem[] = [
   { href: '/inbox',     label: 'Inbox',          icon: '✉️' },
   { href: '/historico', label: 'Histórico',      icon: '🕑' },
   { href: '/config-ia', label: 'Config IA',      icon: '🤖' },
+  { href: '/config-cadencia', label: 'Config Cadência', icon: '🔁' },
 ];
 
 export function Sidebar() {
