@@ -20,6 +20,14 @@ interface CreateBody {
   created_by?: string;
 }
 
+interface EligibleLead {
+  id: string;
+  company_name: string;
+  contact_name: string | null;
+  email: string | null;
+  whatsapp: string | null;
+}
+
 export async function POST(req: NextRequest) {
   let payload: CreateBody;
   try {
@@ -40,31 +48,16 @@ export async function POST(req: NextRequest) {
   if (limit !== undefined && (!Number.isInteger(limit) || limit < 1))
                                          return NextResponse.json({ error: 'limit inválido' }, { status: 400 });
 
-  // 1) Busca os lead_ids que JÁ receberam disparo em lote (blast_targets sent).
-  //    NÃO considera a cadência (outreach) — só a aba Disparo em Lote.
-  const { data: jaEnviados, error: enviadosErr } = await supabase
-    .from('blast_targets')
-    .select('lead_id')
-    .eq('status', 'sent');
-  if (enviadosErr) return NextResponse.json({ error: enviadosErr.message }, { status: 500 });
-  const idsJaEnviados = (jaEnviados ?? []).map(r => r.lead_id).filter(Boolean);
+  // ★ 1) Leads elegíveis via RPC — o NOT IN (exclusão de já-enviados) roda
+  //   DENTRO do banco. Elimina o filtro gigante na URL que causava HTTP 500.
+  const { data: leadsRaw, error: leadsErr } = await supabase
+    .rpc('blast_eligible_leads', {
+      p_campaign_id: campaign_id,
+      p_channel: channel,
+      p_limit: limit ?? null,
+    });
+  const leads = leadsRaw as EligibleLead[] | null;
 
-  // 2) Busca leads da campanha com o canal preenchido, excluindo os já enviados.
-  const channelCol = channel === 'email' ? 'email' : 'whatsapp';
-  let query = supabase
-    .from('leads')
-    .select('id, company_name, contact_name, email, whatsapp')
-    .eq('campaign_id', campaign_id)
-    .not(channelCol, 'is', null)
-    .neq(channelCol, '')
-    .order('created_at', { ascending: true });
-
-  if (idsJaEnviados.length > 0) {
-    query = (query as any).not('id', 'in', `(${idsJaEnviados.join(',')})`);
-  }
-  if (limit) query = query.limit(limit);
-
-  const { data: leads, error: leadsErr } = await query;
   if (leadsErr) return NextResponse.json({ error: leadsErr.message }, { status: 500 });
   if (!leads || leads.length === 0)
     return NextResponse.json({ error: 'Todos os leads com este canal nesta campanha já receberam disparo em lote' }, { status: 404 });
